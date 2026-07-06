@@ -1,0 +1,7 @@
+desktop.ini
+*.exe
+~Record*.ahk
+*.bak
+MacroRecorder.ini
+MacroRecorder.log
+AGENTS.md
