@@ -1,10 +1,8 @@
-# AHK2 Macro Recorder
+# MacrobloX
 
 ## About
 
-This is an AutoHotkey v2 script that enables you to record keyboard and mouse macros. 
-
-It's based on the work of [Raeleus](https://github.com/raeleus/AHK-Macro-Recorder), who based his work on FeiYue's original AHK1 macro recorder.
+An AHKv2 task that can macro a specific game.
 
 ## Installation
 
@@ -37,11 +35,10 @@ Closing the main window exits the recorder and stops active recording, playback,
 
 ### Hotkeys
 
-- `F1` - Play recorded macro
+- `F1` - Play recorded macro once
 - `F2` - Start/Stop recording macro
-- `F3` - Focus the embedded macro editor
 - `F4` - Toggle enable/disable script
-- `F6` - Play macro in a loop (F5 skipped — too commonly reserved by other apps)
+- `F6` - Play macro in a loop
 
 ## Project Layout
 
@@ -54,12 +51,6 @@ Closing the main window exits the recorder and stops active recording, playback,
 - `Lib/ConfigManager.ahk` reads/writes `MacroRecorder.ini`.
 - `Lib/MacroFileService.ahk` manages macro paths and file content.
 - `Lib/AppLogger.ahk` and `Lib/NotificationService.ahk` provide logging and transient status messages.
-
-## Acknowledgments
-
-- Original AHK1 Macro Recorder by FeiYue
-- [Raeleus's AHK Macro Recorder](https://github.com/raeleus/AHK-Macro-Recorder) for the v2 adaptation
-- Special thanks to both creators for their excellent work!
 
 ### Recording Modes
 The script supports three mouse position modes (configurable in the GUI):
@@ -93,7 +84,7 @@ MacroDir=C:\Path\To\Macros
 CurrentMacroFile=C:\Path\To\Macros\DefaultMacro.txt
 ```
 
-## Recording Tips
+## How to Record
 
 1. Pressing F1 will also force to stop the recording process
 2. Keyboard input is recorded as one `Send` command per keystroke, with real delays preserved as `Sleep(...)` lines.
@@ -105,4 +96,8 @@ CurrentMacroFile=C:\Path\To\Macros\DefaultMacro.txt
 8. Use the editor panel's `Files` dropdown to create, open, save, or save as `.txt` macros.
 9. Use `Files` > `Choose Folder` to change where future new macro files are created; the selected folder opens in File Explorer.
 
-Feel free to open issues for bugs or feature requests. Pull requests are MUCH more welcome though!
+## Credits
+
+- Original AHK1 Macro Recorder by FeiYue
+- [Raeleus's AHK Macro Recorder](https://github.com/raeleus/AHK-Macro-Recorder) for the v2 adaptation
+- Forked from [ArtyMcLabin](https://github.com/ArtyMcLabin/AHK2-Macro-Recorder).
