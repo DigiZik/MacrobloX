@@ -11,6 +11,7 @@ class ConfigManager {
       "MouseMode", "screen",
       "RecordSleep", "true",
       "APP_THEME", "dark",
+      "CHECK_UPDATES_ON_STARTUP", "true",
       "MACRO_DIR", scriptDir "\Macros",
       "CURRENT_MACRO_FILE", scriptDir "\Macros\DefaultMacro.txt",
       "ConfigPath", configPath
@@ -41,6 +42,7 @@ class ConfigManager {
     settings.MouseMode := IniRead(path, "Recording", "MouseMode", settings.MouseMode)
     settings.RecordSleep := IniRead(path, "Recording", "RecordSleep", settings.RecordSleep)
     settings.AppTheme := IniRead(path, "Ui", "Theme", settings.AppTheme)
+    settings.CheckUpdatesOnStartup := IniRead(path, "Updates", "CheckOnStartup", settings.CheckUpdatesOnStartup)
     settings.MacroDir := IniRead(path, "Files", "MacroDir", settings.MacroDir)
     settings.CurrentMacroFile := IniRead(path, "Files", "CurrentMacroFile", settings.CurrentMacroFile)
   }
@@ -55,6 +57,7 @@ class ConfigManager {
       IniWrite(settings.MouseMode, settings.ConfigPath, "Recording", "MouseMode")
       IniWrite(settings.RecordSleep, settings.ConfigPath, "Recording", "RecordSleep")
       IniWrite(settings.AppTheme, settings.ConfigPath, "Ui", "Theme")
+      IniWrite(settings.CheckUpdatesOnStartup, settings.ConfigPath, "Updates", "CheckOnStartup")
       IniWrite(settings.MacroDir, settings.ConfigPath, "Files", "MacroDir")
       IniWrite(settings.CurrentMacroFile, settings.ConfigPath, "Files", "CurrentMacroFile")
       return true
@@ -70,6 +73,15 @@ class ConfigManager {
       return fallback
     return RegExReplace(path, "\\+$")
   }
+
+  static NormalizeBool(value, fallback := "false") {
+    value := StrLower(Trim(value))
+    if (value == "true" || value == "1" || value == "yes" || value == "on")
+      return "true"
+    if (value == "false" || value == "0" || value == "no" || value == "off")
+      return "false"
+    return fallback
+  }
 }
 
 class MacroRecorderSettings {
@@ -83,6 +95,7 @@ class MacroRecorderSettings {
     this.MouseMode := defaults["MouseMode"]
     this.RecordSleep := defaults["RecordSleep"]
     this.AppTheme := defaults["APP_THEME"]
+    this.CheckUpdatesOnStartup := defaults["CHECK_UPDATES_ON_STARTUP"]
     this.MacroDir := defaults["MACRO_DIR"]
     this.CurrentMacroFile := defaults["CURRENT_MACRO_FILE"]
     this.ConfigPath := defaults["ConfigPath"]
@@ -94,6 +107,7 @@ class MacroRecorderSettings {
     this.RecordSleep := "true"
     if (this.AppTheme != "light" && this.AppTheme != "dark")
       this.AppTheme := "dark"
+    this.CheckUpdatesOnStartup := ConfigManager.NormalizeBool(this.CheckUpdatesOnStartup, "true")
     if (!IsInteger(this.LoopDelay) || this.LoopDelay < 0)
       this.LoopDelay := 1000
     this.MacroDir := ConfigManager.NormalizeFolderPath(this.MacroDir, A_ScriptDir "\Macros")

@@ -36,12 +36,12 @@ class AppGui {
     this.Settings.Normalize()
     this.MacroFiles.EnsureEmptyMacroFile()
 
-    this.Gui := Gui("+Resize +MinSize860x620", "Macro Recorder for Roblox")
+    this.Gui := Gui("+Resize +MinSize860x620", "MacrobloX - " AppVersion.Display())
     this.Gui.MarginX := 16
     this.Gui.MarginY := 14
     this.Gui.SetFont("s9", "Segoe UI")
 
-    this.BrandText := this.Gui.Add("Text", "xm ym w188 h26", "Macro Recorder")
+    this.BrandText := this.Gui.Add("Text", "xm ym w188 h26", "MacrobloX " AppVersion.Display())
     this.BrandText.SetFont("s14 bold")
     this.RobloxText := this.Gui.Add("Text", "x+18 yp+2 w660 h22", "")
     this.RobloxText.SetFont("s9 bold")
@@ -68,6 +68,11 @@ class AppGui {
     this.MouseModeChoice := this.Gui.Add("DropDownList", "xm y+8 w188", ["screen", "window", "relative"])
     this.MouseModeChoice.Choose(this.Settings.MouseMode == "window" ? 2 : this.Settings.MouseMode == "relative" ? 3 : 1)
     this.MouseModeChoice.OnEvent("Change", (*) => this.QueueSaveSettings())
+    this.UpdateStartupCheck := this.Gui.Add("CheckBox", "xm y+8 w188 h24", "Check updates at startup")
+    this.UpdateStartupCheck.Value := this.Settings.CheckUpdatesOnStartup == "true"
+    this.UpdateStartupCheck.OnEvent("Click", (*) => this.QueueSaveSettings())
+    this.UpdateButton := this.Gui.Add("Button", "xm y+8 w188 h30", "Check for updates")
+    this.UpdateButton.OnEvent("Click", (*) => this.Controller.CheckForUpdates(true))
 
     this.LoopDelayLabel := this.Gui.Add("Text", "xm y+8 w188 h18", "Loop pause (ms)")
     this.LoopDelayInput := this.Gui.Add("Edit", "xm y+2 w188 h26 Number", this.MacroFiles.GetCurrentLoopDelay())
@@ -177,6 +182,8 @@ class AppGui {
       this.SettingsTitle.Move(leftX, 286, leftW, 22)
       this.ThemeChoice.Move(leftX, 312, leftW)
       this.MouseModeChoice.Move(leftX, 349, leftW)
+      this.UpdateStartupCheck.Move(leftX, 386, leftW, 24)
+      this.UpdateButton.Move(leftX, 418, leftW, 30)
       this.LoopDelayLabel.Move(leftX, height + 80, leftW, 18)
       this.LoopDelayInput.Move(leftX, height + 100, leftW, 26)
       this.LoopSpeedLabel.Move(leftX, height + 130, leftW, 18)
@@ -235,7 +242,7 @@ class AppGui {
     if (this.Settings.AppTheme == "dark") {
       this.Gui.BackColor := "121212"
       this.Gui.SetFont("cFFFFFF", "Segoe UI")
-      for ctrl in [this.BrandText, this.RobloxText, this.StatusText, this.SettingsTitle, this.EditorTitle, this.PathText, this.MacroFolderText, this.SaveStateText, this.FileActionLabel, this.LoopDelayLabel, this.LoopSpeedLabel, this.AddActionLabel, this.RobloxPlaceholder]
+      for ctrl in [this.BrandText, this.RobloxText, this.StatusText, this.SettingsTitle, this.UpdateStartupCheck, this.EditorTitle, this.PathText, this.MacroFolderText, this.SaveStateText, this.FileActionLabel, this.LoopDelayLabel, this.LoopSpeedLabel, this.AddActionLabel, this.RobloxPlaceholder]
         try ctrl.SetFont("cFFFFFF", "Segoe UI")
       try this.StatusText.SetFont("c1DB954 bold", "Segoe UI")
       try this.PathText.SetFont("cB3B3B3", "Segoe UI")
@@ -245,7 +252,7 @@ class AppGui {
     } else {
       this.Gui.BackColor := "F7F8FA"
       this.Gui.SetFont("c1F2328", "Segoe UI")
-      for ctrl in [this.BrandText, this.RobloxText, this.StatusText, this.SettingsTitle, this.EditorTitle, this.PathText, this.MacroFolderText, this.SaveStateText, this.FileActionLabel, this.LoopDelayLabel, this.LoopSpeedLabel, this.AddActionLabel, this.RobloxPlaceholder]
+      for ctrl in [this.BrandText, this.RobloxText, this.StatusText, this.SettingsTitle, this.UpdateStartupCheck, this.EditorTitle, this.PathText, this.MacroFolderText, this.SaveStateText, this.FileActionLabel, this.LoopDelayLabel, this.LoopSpeedLabel, this.AddActionLabel, this.RobloxPlaceholder]
         try ctrl.SetFont("c1F2328", "Segoe UI")
       try this.EditorControl.Opt("c1F2328 BackgroundFFFFFF")
     }
@@ -736,6 +743,7 @@ class AppGui {
       return
     this.Settings.AppTheme := this.ThemeChoice.Text
     this.Settings.MouseMode := this.MouseModeChoice.Text
+    this.Settings.CheckUpdatesOnStartup := this.UpdateStartupCheck.Value ? "true" : "false"
     this.Settings.RecordSleep := "true"
     this.Settings.Normalize()
     this.ApplyTheme()
