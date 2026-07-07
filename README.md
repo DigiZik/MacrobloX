@@ -27,6 +27,8 @@ The GUI is resizable and includes:
 
 Recorded `.txt` macros are intentionally small. The file includes the selected mouse mode, the per-macro loop delay metadata, the recorded actions, and the minimal AutoHotkey setup needed to run them. Loop playback is handled by the recorder app, so saved macros do not need loop boilerplate.
 
+While one-shot playback or loop playback is running, the recorder asks Windows to keep the system and display awake. This helps long loop runs continue instead of being interrupted by idle sleep or display power-off behavior. The request is released when playback stops or finishes.
+
 Settings are saved in `MacroRecorder.ini` next to `MacroRecorder.ahk`. This includes the selected theme, recording options, default macro folder, and current macro file. Runtime errors are written to `MacroRecorder.log`.
 
 The Reset button safely stops recording/playback/looping, releases held modifiers, resets mouse mode to `screen`, switches back to `Macros\DefaultMacro.txt`, recreates it as an empty valid AutoHotkey v2 script, and restarts the recorder.

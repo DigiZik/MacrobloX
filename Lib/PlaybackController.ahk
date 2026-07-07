@@ -6,10 +6,29 @@ class PlaybackController {
     this.Logger := logger
     this.LoopPlaybackHandler := ObjBindMethod(this, "LoopPlaybackTick")
     this.PlaybackWatchHandler := ""
+    this.PowerRequestActive := false
   }
 
   ReleaseModifiers() {
     Send("{Shift up}{Ctrl up}{Alt up}{LWin up}{RWin up}")
+  }
+
+  KeepSystemAwake() {
+    if (this.PowerRequestActive)
+      return
+    ; Prevent Windows idle sleep/display power-off while playback automation is active.
+    flags := 0x80000000 | 0x1 | 0x2
+    result := DllCall("SetThreadExecutionState", "UInt", flags, "UInt")
+    if (!result)
+      this.Logger.Warn("Could not request Windows awake state during playback.")
+    this.PowerRequestActive := true
+  }
+
+  AllowSystemSleep() {
+    if (!this.PowerRequestActive)
+      return
+    DllCall("SetThreadExecutionState", "UInt", 0x80000000, "UInt")
+    this.PowerRequestActive := false
   }
 
   RunMacroFile(waitForExit := false) {
@@ -24,6 +43,7 @@ class PlaybackController {
       this.ReleaseModifiers()
       playbackFile := this.MacroFiles.WritePlaybackCopy()
       command := A_IsCompiled ? ahk " /script /restart `"" playbackFile "`"" : ahk " /restart `"" playbackFile "`""
+      this.KeepSystemAwake()
       Run(command, , , &pid)
       if (waitForExit) {
         this.State.LoopPid := pid
@@ -34,6 +54,8 @@ class PlaybackController {
       }
       return true
     } catch as err {
+      if (!this.State.Looping && !this.State.Playing)
+        this.AllowSystemSleep()
       this.Logger.ShowError("Playback failed", "Could not run the current macro.", err)
       return false
     }
@@ -49,10 +71,12 @@ class PlaybackController {
     try ProcessClose(this.State.LoopPid)
     this.State.LoopPid := 0
     this.State.Playing := false
+    this.AllowSystemSleep()
     return true
   }
 
   StartLoop() {
+    this.KeepSystemAwake()
     this.State.Looping := true
     SetTimer(this.LoopPlaybackHandler, -10)
   }
@@ -63,6 +87,7 @@ class PlaybackController {
     if (!this.RunMacroFile(true)) {
       this.State.Looping := false
       this.State.LoopPid := 0
+      this.AllowSystemSleep()
       return
     }
     this.State.LoopPid := 0
@@ -85,6 +110,7 @@ class PlaybackController {
     SetTimer(this.PlaybackWatchHandler, 0)
     this.State.Playing := false
     this.State.LoopPid := 0
+    this.AllowSystemSleep()
     try onComplete.Call()
   }
 }

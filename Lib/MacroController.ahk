@@ -291,6 +291,7 @@ class MacroController {
         this.Recorder.Stop()
     }
     try this.Playback.ReleaseModifiers()
+    try this.Playback.AllowSystemSleep()
     try this.Notifier.Hide()
     ExitApp()
   }
