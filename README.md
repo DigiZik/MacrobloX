@@ -1,20 +1,19 @@
-# AHK2 Macro Recorder
+# MacrobloX
 
 ## About
 
-This is an AutoHotkey v2 script that enables you to record keyboard and mouse macros. 
-
-It's based on the work of [Raeleus](https://github.com/raeleus/AHK-Macro-Recorder), who based his work on FeiYue's original AHK1 macro recorder.
+An AHKv2 task that can macro a specific game.
 
 ## Installation
 
 1. Install [AutoHotkey v2](https://www.autohotkey.com/)
-2. Download the repository, keeping `MacroRecorder.ahk` and the `Lib/` folder together.
-3. Double-click `MacroRecorder.ahk`.
+2. Download the latest `MacrobloX-vX.Y.Z-source.zip` from [GitHub Releases](https://github.com/DigiZik/MacrobloX/releases/latest).
+3. Extract the zip, keeping `MacroRecorder.ahk` and the `Lib/` folder together.
+4. Double-click `MacroRecorder.ahk`.
 
 ## Usage
 
-Double-clicking `MacroRecorder.ahk` opens the native Roblox-focused control window. By default, macros are saved as `.txt` files in a `Macros` folder next to `MacroRecorder.ahk`, so the normal workflow is still just launching that one script.
+Double-clicking `MacroRecorder.ahk` opens MacrobloX in the native Roblox-focused control window. By default, macros are saved as `.txt` files in a `Macros` folder next to `MacroRecorder.ahk`, so the normal workflow is still just launching that one script.
 
 The GUI opens maximized by default and uses a dark, Spotify-inspired console layout with transport controls on the left and a Roblox-first workspace on the right. The layout follows the window border when resized, keeping the sidebar controls, file actions, Roblox area, and editor rail aligned. If Roblox is running as `RobloxPlayerBeta.exe`, the recorder places a borderless Roblox overlay in the main workspace so you can build macros against it while the macro editor stays available as a narrow side rail.
 
@@ -25,9 +24,14 @@ The GUI is resizable and includes:
 - A status area showing Roblox detection, the current macro path, recording/looping/disabled state, and editor save state
 - Light/dark appearance selection
 - Beginner-friendly settings for mouse positions plus per-macro loop pause and loop speed controls
+- A `Check for updates` button and startup update checks that prompt before downloading from GitHub Releases
 - A collapsible structured macro editor rail that uses about one eighth of the workspace, protects generated setup/exit lines, zebra-stripes rows, and lets recorded action lines be edited directly
 
 Recorded `.txt` macros are intentionally small. The file includes the selected mouse mode, the per-macro loop delay metadata, the recorded actions, and the minimal AutoHotkey setup needed to run them. Loop playback is handled by the recorder app, so saved macros do not need loop boilerplate.
+
+MacrobloX checks GitHub Releases for updates on startup by default. When a newer stable release is available, it prompts before downloading `MacrobloX-vX.Y.Z-source.zip`, updates the app files, preserves `MacroRecorder.ini`, `Macros/`, and `MacroRecorder.log`, then restarts the recorder. You can disable startup checks from the Session area and still use `Check for updates` manually.
+
+While one-shot playback or loop playback is running, the recorder asks Windows to keep the system and display awake. This helps long loop runs continue instead of being interrupted by idle sleep or display power-off behavior. The request is released when playback stops or finishes.
 
 Settings are saved in `MacroRecorder.ini` next to `MacroRecorder.ahk`. This includes the selected theme, recording options, default macro folder, and current macro file. Runtime errors are written to `MacroRecorder.log`.
 
@@ -37,11 +41,10 @@ Closing the main window exits the recorder and stops active recording, playback,
 
 ### Hotkeys
 
-- `F1` - Play recorded macro
+- `F1` - Play recorded macro once
 - `F2` - Start/Stop recording macro
-- `F3` - Focus the embedded macro editor
 - `F4` - Toggle enable/disable script
-- `F6` - Play macro in a loop (F5 skipped — too commonly reserved by other apps)
+- `F6` - Play macro in a loop
 
 ## Project Layout
 
@@ -54,12 +57,6 @@ Closing the main window exits the recorder and stops active recording, playback,
 - `Lib/ConfigManager.ahk` reads/writes `MacroRecorder.ini`.
 - `Lib/MacroFileService.ahk` manages macro paths and file content.
 - `Lib/AppLogger.ahk` and `Lib/NotificationService.ahk` provide logging and transient status messages.
-
-## Acknowledgments
-
-- Original AHK1 Macro Recorder by FeiYue
-- [Raeleus's AHK Macro Recorder](https://github.com/raeleus/AHK-Macro-Recorder) for the v2 adaptation
-- Special thanks to both creators for their excellent work!
 
 ### Recording Modes
 The script supports three mouse position modes (configurable in the GUI):
@@ -88,12 +85,25 @@ RecordSleep=true
 [Ui]
 Theme=dark
 
+[Updates]
+CheckOnStartup=true
+
 [Files]
 MacroDir=C:\Path\To\Macros
 CurrentMacroFile=C:\Path\To\Macros\DefaultMacro.txt
 ```
 
-## Recording Tips
+## Release Process
+
+Maintainers publish MacrobloX through GitHub Releases:
+
+1. Update the app version in `Lib/AppVersion.ahk`.
+2. Commit the release changes.
+3. Tag the commit, for example `v1.0.0`.
+4. Push the tag to GitHub.
+5. GitHub Actions creates the release and uploads `MacrobloX-v1.0.0-source.zip`.
+
+## How to Record
 
 1. Pressing F1 will also force to stop the recording process
 2. Keyboard input is recorded as one `Send` command per keystroke, with real delays preserved as `Sleep(...)` lines.
@@ -105,4 +115,8 @@ CurrentMacroFile=C:\Path\To\Macros\DefaultMacro.txt
 8. Use the editor panel's `Files` dropdown to create, open, save, or save as `.txt` macros.
 9. Use `Files` > `Choose Folder` to change where future new macro files are created; the selected folder opens in File Explorer.
 
-Feel free to open issues for bugs or feature requests. Pull requests are MUCH more welcome though!
+## Credits
+
+- Original AHK1 Macro Recorder by FeiYue
+- [Raeleus's AHK Macro Recorder](https://github.com/raeleus/AHK-Macro-Recorder) for the v2 adaptation
+- Forked from [ArtyMcLabin](https://github.com/ArtyMcLabin/AHK2-Macro-Recorder).

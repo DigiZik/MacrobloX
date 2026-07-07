@@ -1,0 +1,38 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Publish GitHub Release
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Package source distribution
+        shell: pwsh
+        run: |
+          $version = "${{ github.ref_name }}".TrimStart("v")
+          $packageDir = Join-Path $PWD "dist\MacrobloX-v$version-source"
+          New-Item -ItemType Directory -Path $packageDir -Force | Out-Null
+          Copy-Item -LiteralPath "MacroRecorder.ahk" -Destination $packageDir
+          Copy-Item -LiteralPath "README.md" -Destination $packageDir
+          Copy-Item -LiteralPath "LICENSE" -Destination $packageDir
+          Copy-Item -LiteralPath "Lib" -Destination $packageDir -Recurse
+          Compress-Archive -Path (Join-Path $packageDir "*") -DestinationPath "dist\MacrobloX-v$version-source.zip" -Force
+
+      - name: Create release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $version = "${{ github.ref_name }}".TrimStart("v")
+          gh release create "${{ github.ref_name }}" "dist\MacrobloX-v$version-source.zip#MacrobloX v$version source zip" --title "MacrobloX ${{ github.ref_name }}" --generate-notes --latest

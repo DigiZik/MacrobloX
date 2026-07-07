@@ -1,5 +1,5 @@
 class MacroController {
-  __New(settings, state, recorder, playback, guiApp, macroFiles, notifier, logger) {
+  __New(settings, state, recorder, playback, guiApp, macroFiles, notifier, logger, updater) {
     this.Settings := settings
     this.State := state
     this.Recorder := recorder
@@ -8,6 +8,7 @@ class MacroController {
     this.MacroFiles := macroFiles
     this.Notifier := notifier
     this.Logger := logger
+    this.Updater := updater
   }
 
   RegisterHotkeys() {
@@ -16,6 +17,42 @@ class MacroController {
     Hotkey(this.Settings.EditKey, (*) => this.EditKeyAction())
     Hotkey(this.Settings.LoopKey, (*) => this.LoopKeyAction())
     Hotkey(this.Settings.ToggleKey, (*) => this.ToggleScript())
+  }
+
+  ScheduleStartupUpdateCheck() {
+    if (this.Settings.CheckUpdatesOnStartup != "true")
+      return
+    SetTimer(ObjBindMethod(this, "CheckForUpdates", false), -1500)
+  }
+
+  CheckForUpdates(showUpToDate := true) {
+    try {
+      result := this.Updater.CheckLatest()
+      if (!result.HasUpdate) {
+        if (showUpToDate)
+          MsgBox("MacrobloX " AppVersion.Display() " is up to date.", "MacrobloX updates", 4096)
+        return false
+      }
+
+      prompt := "Version " result.VersionTag " is available.`n`nDownload and install now?"
+      if (MsgBox(prompt, "MacrobloX update available", "YesNo Icon?") != "Yes")
+        return false
+
+      this.StopLoop(false)
+      if (this.State.Recording)
+        this.StopRecording()
+      try this.Playback.ReleaseModifiers()
+      this.Gui.UpdateState("Installing update " result.VersionTag)
+      this.Updater.DownloadAndInstall(result)
+      return true
+    } catch as err {
+      if (showUpToDate)
+        this.Logger.ShowError("Update check failed", "Could not check for MacrobloX updates.", err)
+      else
+        this.Logger.Error("Startup update check failed", err)
+      this.Gui.UpdateState()
+      return false
+    }
   }
 
   RecordKeyAction() {
@@ -291,6 +328,7 @@ class MacroController {
         this.Recorder.Stop()
     }
     try this.Playback.ReleaseModifiers()
+    try this.Playback.AllowSystemSleep()
     try this.Notifier.Hide()
     ExitApp()
   }

@@ -2,6 +2,7 @@
 ;#NoTrayIcon
 #SingleInstance Force
 #Include Lib\AppLogger.ahk
+#Include Lib\AppVersion.ahk
 #Include Lib\ConfigManager.ahk
 #Include Lib\AppState.ahk
 #Include Lib\MacroFileService.ahk
@@ -9,6 +10,7 @@
 #Include Lib\MacroRecorderEngine.ahk
 #Include Lib\PlaybackController.ahk
 #Include Lib\RobloxWindowService.ahk
+#Include Lib\UpdateService.ahk
 #Include Lib\AppGui.ahk
 #Include Lib\MacroController.ahk
 
@@ -27,12 +29,14 @@ Main() {
   macroFiles := MacroFileService(settings, logger)
   notifier := NotificationService()
   roblox := RobloxWindowService(logger)
+  updater := UpdateService(settings, logger, A_ScriptDir)
   recorder := MacroRecorderEngine(settings, state, macroFiles, logger)
   playback := PlaybackController(settings, state, macroFiles, logger)
   guiApp := AppGui(settings, state, macroFiles, logger, roblox)
-  controller := MacroController(settings, state, recorder, playback, guiApp, macroFiles, notifier, logger)
+  controller := MacroController(settings, state, recorder, playback, guiApp, macroFiles, notifier, logger, updater)
 
   guiApp.SetController(controller)
   controller.RegisterHotkeys()
   guiApp.Build()
+  controller.ScheduleStartupUpdateCheck()
 }
