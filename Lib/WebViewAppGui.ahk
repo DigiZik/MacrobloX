@@ -225,7 +225,7 @@ class WebViewAppGui {
       else if (action == "syncWorkspace")
         this.SyncRobloxWorkspace()
     } catch as err {
-      this.Logger.ShowError("Action failed", "MacrobloX could not finish the `" action "` action.", err)
+      this.Logger.ShowError("Action failed", "MacrobloX could not finish action: " action, err)
       this.UpdateState(action " failed")
     }
   }
