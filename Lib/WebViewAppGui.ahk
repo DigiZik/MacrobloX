@@ -12,12 +12,29 @@ class WebViewAppGui {
     this.Browser := ""
     this.BridgeHandler := ObjBindMethod(this, "PollBridge")
     this.AttachHandler := ObjBindMethod(this, "SyncRobloxWorkspace")
+    this.ResizeSyncHandler := ObjBindMethod(this, "SyncRobloxWorkspace")
+    this.ActivateHandler := ObjBindMethod(this, "HandleGuiActivate")
     this.CopyHandler := ObjBindMethod(this, "CopyFocusedInput")
     this.CutHandler := ObjBindMethod(this, "CutFocusedInput")
     this.PasteHandler := ObjBindMethod(this, "PasteFocusedInput")
     this.SelectAllHandler := ObjBindMethod(this, "SelectAllFocusedInput")
     this.AttachedToRoblox := false
     this.IsMinimized := false
+    this.LastRobloxAvailable := false
+    this.LastWorkspaceRect := ""
+    this.WorkspaceHoleApplied := false
+    this.LastWorkspaceHoleRect := ""
+    this.TransparentWorkspaceColor := "FE00FE"
+    this.LastFixedWorkspaceSize := ""
+    this.RestoredDefaultAppliedHwnd := 0
+    this.StandaloneMinW := 960
+    this.StandaloneMinH := 640
+    this.RobloxMinWindowW := 800
+    this.RobloxMinWindowH := 600
+    this.CurrentMinSize := ""
+    this.CurrentRobloxSyncInterval := 0
+    this.FollowingRobloxWindow := false
+    this.LastFollowedRobloxRect := ""
     this.LastSavedText := "Loaded"
     this.EditorLoaded := false
     this.HiddenBeforeRows := []
@@ -50,7 +67,8 @@ class WebViewAppGui {
       this.Settings.Normalize()
       this.MacroFiles.EnsureEmptyMacroFile()
 
-      this.Gui := Gui("+Resize +MinSize960x640", "MacrobloX - " AppVersion.Display())
+      this.Gui := Gui("+Resize +MinSize" this.StandaloneMinW "x" this.StandaloneMinH, "MacrobloX - " AppVersion.Display())
+      this.Gui.BackColor := this.TransparentWorkspaceColor
       this.Gui.MarginX := 0
       this.Gui.MarginY := 0
       this.BrowserControl := this.Gui.Add("ActiveX", "x0 y0 w960 h640", "Shell.Explorer")
@@ -58,14 +76,16 @@ class WebViewAppGui {
       this.Browser.Silent := true
       this.Gui.OnEvent("Size", ObjBindMethod(this, "Resize"))
       this.Gui.OnEvent("Close", (*) => this.CloseApplication())
+      OnMessage(0x0006, this.ActivateHandler)
 
       indexPath := A_ScriptDir "\Gui\index.html"
-      this.Browser.Navigate("file:///" StrReplace(indexPath, "\", "/"))
+      theme := this.Settings.AppTheme == "dark" ? "dark" : "light"
+      this.Browser.Navigate("file:///" StrReplace(indexPath, "\", "/") "?theme=" theme)
       this.Gui.Show("Maximize")
       this.RegisterClipboardHotkeys()
       SetTimer(ObjBindMethod(this, "InitialPush"), -700)
       SetTimer(this.BridgeHandler, 120)
-      SetTimer(this.AttachHandler, 1500)
+      this.SetRobloxSyncInterval(1500)
     } catch as err {
       this.Logger.ShowError("GUI startup failed", "Could not start the MacrobloX interface.", err)
       throw err
@@ -100,17 +120,16 @@ class WebViewAppGui {
   Resize(thisGui, minMax, width, height) {
     if (minMax == -1) {
       this.IsMinimized := true
-      if (this.AttachedToRoblox) {
-        this.Roblox.Restore()
-        this.AttachedToRoblox := false
-      }
+      this.ResetRestoredRobloxDefault()
+      this.DetachRobloxWorkspace(false)
       this.UpdateState()
       return
     }
     this.IsMinimized := false
+    if (minMax == 1)
+      this.ResetRestoredRobloxDefault()
     try this.BrowserControl.Move(0, 0, width, height)
-    this.SyncRobloxWorkspace()
-    this.UpdateState()
+    this.QueueRobloxWorkspaceSync(320)
   }
 
   MinimizeForStandaloneRecording() {
@@ -148,7 +167,7 @@ class WebViewAppGui {
         this.Gui.Show("Restore")
       }
       WinActivate(hwnd)
-      this.SyncRobloxWorkspace()
+      this.QueueRobloxWorkspaceSync()
       this.UpdateState()
       return true
     } catch as err {
@@ -394,37 +413,294 @@ class WebViewAppGui {
 
   GetRobloxStatusText() {
     if (this.AttachedToRoblox)
-      return "Roblox overlaying the dashboard workspace"
-    if (this.Roblox.IsAvailable())
-      return "Roblox detected - overlaying..."
+      return "Roblox visible through the dashboard workspace"
+    if (this.LastRobloxAvailable)
+      return "Roblox detected - aligning workspace..."
     return "Roblox not detected - standalone mode"
   }
 
-  SyncRobloxWorkspace() {
-    if (!IsObject(this.Gui) || !IsObject(this.Browser))
+  QueueRobloxWorkspaceSync(delay := 120) {
+    try SetTimer(this.ResizeSyncHandler, 0)
+    try SetTimer(this.ResizeSyncHandler, -delay)
+  }
+
+  SetRobloxSyncInterval(interval) {
+    if (this.CurrentRobloxSyncInterval == interval)
       return
-    if (this.IsMinimized) {
-      if (this.AttachedToRoblox) {
-        this.Roblox.Restore()
-        this.AttachedToRoblox := false
-      }
-      this.UpdateState()
+    try SetTimer(this.AttachHandler, interval)
+    this.CurrentRobloxSyncInterval := interval
+  }
+
+  HandleGuiActivate(wParam, lParam, msg, hwnd) {
+    if (!IsObject(this.Gui) || hwnd != this.Gui.Hwnd)
+      return
+    if ((wParam & 0xFFFF) == 0)
+      return
+    this.IsMinimized := false
+    this.QueueRobloxWorkspaceSync(30)
+  }
+
+  SyncRobloxWorkspace() {
+    if (!IsObject(this.Gui) || !IsObject(this.Browser)) {
+      this.ClearWorkspaceHole()
       return
     }
-    if (this.Roblox.IsAvailable())
-      this.UseWindowMouseModeForRoblox()
-    rect := this.GetWorkspaceScreenRect()
-    if (rect == "hidden")
+    if (!this.IsDocumentReady()) {
+      this.ClearWorkspaceHole()
       return
-    if (!IsObject(rect)) {
-      this.Roblox.Restore()
-      this.AttachedToRoblox := false
-      this.UpdateState()
+    }
+    if (this.IsMinimized) {
+      this.ResetRestoredRobloxDefault()
+      this.DetachRobloxWorkspace()
       return
     }
     wasAttached := this.AttachedToRoblox
-    this.AttachedToRoblox := this.Roblox.OverlayInRect(this.Gui.Hwnd, rect.X, rect.Y, rect.W, rect.H)
-    if (this.AttachedToRoblox != wasAttached)
+    wasAvailable := this.LastRobloxAvailable
+    available := this.Roblox.IsAvailable()
+    this.LastRobloxAvailable := available
+    if (available)
+      this.UseWindowMouseModeForRoblox()
+    followMode := available && this.ShouldFollowRobloxWindow()
+    this.SetRobloxSyncInterval(followMode ? 900 : 1500)
+    followReady := true
+    if (followMode)
+      followReady := this.SetRestoredWorkspaceSizeFromRoblox()
+    else {
+      this.ResetRestoredRobloxDefault()
+      this.ClearRestoredWorkspaceSize()
+    }
+    if (!followReady) {
+      this.DetachRobloxWorkspace(false)
+      if (this.AttachedToRoblox != wasAttached || this.LastRobloxAvailable != wasAvailable)
+        this.UpdateState()
+      return
+    }
+    this.UpdateGuiMinimumForRoblox(available)
+    rect := this.GetWorkspaceScreenRect()
+    if (rect == "hidden" || !IsObject(rect)) {
+      this.DetachRobloxWorkspace(false)
+      if (this.AttachedToRoblox != wasAttached || this.LastRobloxAvailable != wasAvailable)
+        this.UpdateState()
+      return
+    }
+
+    this.LastWorkspaceRect := rect.X "," rect.Y "," rect.W "," rect.H
+    positioned := false
+    if (followMode && this.AlignRestoredRobloxWorkspace(rect)) {
+      nextRect := this.GetWorkspaceScreenRect()
+      if (IsObject(nextRect))
+        rect := nextRect
+      positioned := true
+    } else if (available && !followMode) {
+      positioned := this.Roblox.OverlayInRect(this.Gui.Hwnd, rect.X, rect.Y, rect.W, rect.H)
+    }
+    this.AttachedToRoblox := available && positioned
+    if (this.AttachedToRoblox && !this.ApplyWorkspaceHole())
+      this.AttachedToRoblox := false
+    if (!this.AttachedToRoblox)
+      this.DetachRobloxWorkspace(false)
+    if (this.AttachedToRoblox != wasAttached || this.LastRobloxAvailable != wasAvailable)
+      this.UpdateState()
+  }
+
+  ShouldFollowRobloxWindow() {
+    if (!IsObject(this.Gui) || this.IsMinimized)
+      return false
+    try return WinGetMinMax("ahk_id " this.Gui.Hwnd) == 0
+    catch
+      return false
+  }
+
+  SetRestoredWorkspaceSizeFromRoblox() {
+    robloxWindow := this.Roblox.GetBounds()
+    if (!IsObject(robloxWindow))
+      return false
+    if (this.RestoredDefaultAppliedHwnd != robloxWindow.Hwnd) {
+      this.SetRestoredWorkspaceSize(this.RobloxMinWindowW, this.RobloxMinWindowH)
+      workspaceRect := this.GetWorkspaceScreenRect()
+      if (!IsObject(workspaceRect))
+        return false
+      sizedClient := this.Roblox.EnsureRestoredClientRect(this.RobloxMinWindowW, this.RobloxMinWindowH, robloxWindow.Hwnd, workspaceRect.X, workspaceRect.Y)
+      if (IsObject(sizedClient)) {
+        robloxClient := sizedClient
+        this.RestoredDefaultAppliedHwnd := robloxClient.Hwnd
+        this.LastFollowedRobloxRect := ""
+      } else {
+        return false
+      }
+    } else {
+      robloxClient := this.Roblox.GetClientBounds(robloxWindow.Hwnd)
+      if (!IsObject(robloxClient))
+        return false
+    }
+    width := robloxClient.W
+    height := robloxClient.H
+    return this.SetRestoredWorkspaceSize(width, height)
+  }
+
+  SetRestoredWorkspaceSize(width, height) {
+    nextSize := Round(width) "x" Round(height)
+    if (this.LastFixedWorkspaceSize == nextSize)
+      return true
+    this.ExecScript("if (window.MacrobloXSetWorkspaceSize) window.MacrobloXSetWorkspaceSize(" Round(width) "," Round(height) ");")
+    this.LastFixedWorkspaceSize := nextSize
+    return true
+  }
+
+  ClearRestoredWorkspaceSize() {
+    if (this.LastFixedWorkspaceSize == "")
+      return
+    this.ExecScript("if (window.MacrobloXSetWorkspaceSize) window.MacrobloXSetWorkspaceSize(0,0);")
+    this.LastFixedWorkspaceSize := ""
+  }
+
+  ResetRestoredRobloxDefault() {
+    this.RestoredDefaultAppliedHwnd := 0
+  }
+
+  AlignRestoredRobloxWorkspace(rect := "") {
+    if (this.FollowingRobloxWindow)
+      return false
+    robloxWindow := this.Roblox.GetBounds()
+    if (!IsObject(robloxWindow))
+      return false
+    robloxClient := this.Roblox.GetClientBounds(robloxWindow.Hwnd)
+    if (!IsObject(robloxClient) || robloxClient.W < 320 || robloxClient.H < 240)
+      return false
+    workspaceBrowserRect := this.GetWorkspaceBrowserRect(false)
+    browserRect := this.GetBrowserClientRect()
+    if (!IsObject(workspaceBrowserRect) || !IsObject(browserRect))
+      return false
+
+    targetWorkspaceW := Max(this.RobloxMinWindowW, robloxClient.W)
+    targetWorkspaceH := Max(this.RobloxMinWindowH, robloxClient.H)
+    editorRect := this.GetBrowserElementRect("editorRail", false)
+    if (IsObject(editorRect) && editorRect.W > 0)
+      contentW := editorRect.X + editorRect.W + 14
+    else
+      contentW := workspaceBrowserRect.X + targetWorkspaceW + 14
+    targetW := contentW
+    targetH := workspaceBrowserRect.Y + targetWorkspaceH + 14
+    targetW := Max(this.StandaloneMinW, targetW)
+    targetH := Max(this.StandaloneMinH, targetH)
+    if (!IsObject(rect))
+      rect := this.GetWorkspaceScreenRect()
+    if (!IsObject(rect))
+      return false
+    nextRect := robloxWindow.Hwnd "," targetW "," targetH "," rect.X "," rect.Y "," rect.W "," rect.H "," robloxClient.W "," robloxClient.H
+    currentClient := this.Roblox.GetClientBounds(robloxWindow.Hwnd)
+    clientAligned := IsObject(currentClient)
+      && Abs(currentClient.X - rect.X) <= 2
+      && Abs(currentClient.Y - rect.Y) <= 2
+      && Abs(currentClient.W - robloxClient.W) <= 2
+      && Abs(currentClient.H - robloxClient.H) <= 2
+    if (this.LastFollowedRobloxRect == nextRect && clientAligned) {
+      this.Roblox.BeginOverlay(robloxWindow.Hwnd)
+      this.Roblox.PlaceBehindOwner(this.Gui.Hwnd)
+      return true
+    }
+
+    try {
+      this.FollowingRobloxWindow := true
+      current := this.GetBrowserClientRect()
+      if (!IsObject(current) || Abs(current.W - targetW) > 2 || Abs(current.H - targetH) > 2) {
+        this.Gui.Show("w" targetW " h" targetH)
+        rect := this.GetWorkspaceScreenRect()
+        if (!IsObject(rect))
+          return false
+      }
+      this.Roblox.BeginOverlay(robloxWindow.Hwnd)
+      movedClient := this.Roblox.EnsureRestoredClientRect(robloxClient.W, robloxClient.H, robloxWindow.Hwnd, rect.X, rect.Y)
+      if (!IsObject(movedClient))
+        return false
+      this.Roblox.PlaceBehindOwner(this.Gui.Hwnd)
+      this.LastFollowedRobloxRect := nextRect
+      return true
+    } catch as err {
+      this.Logger.Warn("Could not follow restored Roblox window: " err.Message)
+      return false
+    } finally {
+      this.FollowingRobloxWindow := false
+    }
+  }
+
+  GetGuiClientScreenOrigin() {
+    try {
+      point := Buffer(8, 0)
+      if (!DllCall("ClientToScreen", "Ptr", this.Gui.Hwnd, "Ptr", point, "Int"))
+        return ""
+      return { X: NumGet(point, 0, "Int"), Y: NumGet(point, 4, "Int") }
+    } catch {
+      return ""
+    }
+  }
+
+  UpdateGuiMinimumForRoblox(available) {
+    if (!IsObject(this.Gui))
+      return
+    if (!available) {
+      this.SetGuiMinimum(this.StandaloneMinW, this.StandaloneMinH)
+      return
+    }
+    workspaceRect := this.GetWorkspaceBrowserRect(false)
+    browserRect := this.GetBrowserClientRect()
+    if (!IsObject(workspaceRect) || !IsObject(browserRect)) {
+      this.SetGuiMinimum(this.StandaloneMinW, this.StandaloneMinH)
+      return
+    }
+    robloxMin := this.GetRobloxWorkspaceMinimum()
+    editorRect := this.GetBrowserElementRect("editorRail", false)
+    if (IsObject(editorRect) && editorRect.W > 0)
+      contentW := editorRect.X + editorRect.W + 14
+    else
+      contentW := workspaceRect.X + robloxMin.W + 14
+    contentH := workspaceRect.Y + robloxMin.H + 14
+    minW := Max(this.StandaloneMinW, contentW)
+    minH := Max(this.StandaloneMinH, contentH)
+    this.SetGuiMinimum(minW, minH)
+    this.EnsureGuiClientMinimum(minW, minH)
+  }
+
+  GetRobloxWorkspaceMinimum() {
+    return { W: this.RobloxMinWindowW, H: this.RobloxMinWindowH }
+  }
+
+  SetGuiMinimum(width, height) {
+    width := Round(width)
+    height := Round(height)
+    nextSize := width "x" height
+    if (this.CurrentMinSize == nextSize)
+      return
+    try this.Gui.Opt("+MinSize" nextSize)
+    this.CurrentMinSize := nextSize
+  }
+
+  EnsureGuiClientMinimum(width, height) {
+    if (!IsObject(this.Gui) || this.IsMinimized)
+      return
+    try {
+      if (WinGetMinMax("ahk_id " this.Gui.Hwnd) != 0)
+        return
+      this.BrowserControl.GetPos(,, &currentW, &currentH)
+      nextW := Max(currentW, Round(width))
+      nextH := Max(currentH, Round(height))
+      if (nextW != currentW || nextH != currentH)
+        this.Gui.Show("w" nextW " h" nextH)
+    } catch as err {
+      this.Logger.Warn("Could not enforce Roblox workspace minimum: " err.Message)
+    }
+  }
+
+  DetachRobloxWorkspace(updateState := true) {
+    wasAttached := this.AttachedToRoblox
+    this.ClearWorkspaceHole()
+    this.ResetRestoredRobloxDefault()
+    this.ClearRestoredWorkspaceSize()
+    this.Roblox.Restore()
+    this.AttachedToRoblox := false
+    this.LastWorkspaceRect := ""
+    this.LastFollowedRobloxRect := ""
+    if (updateState && wasAttached)
       this.UpdateState()
   }
 
@@ -435,7 +711,9 @@ class WebViewAppGui {
       if (!IsObject(el))
         return ""
       rect := el.getBoundingClientRect()
-      if ((rect.right - rect.left) <= 1 || (rect.bottom - rect.top) <= 1)
+      width := Round(rect.right - rect.left)
+      height := Round(rect.bottom - rect.top)
+      if (width < 320 || height < 240)
         return "hidden"
       this.BrowserControl.GetPos(&browserX, &browserY)
       point := Buffer(8, 0)
@@ -445,11 +723,113 @@ class WebViewAppGui {
       return {
         X: NumGet(point, 0, "Int"),
         Y: NumGet(point, 4, "Int"),
-        W: Max(320, Round(rect.right - rect.left)),
-        H: Max(240, Round(rect.bottom - rect.top))
+        W: width,
+        H: height
       }
     } catch as err {
       this.Logger.Warn("Web workspace bounds failed: " err.Message)
+      return ""
+    }
+  }
+
+  ApplyWorkspaceHole() {
+    if (!IsObject(this.Gui) || !IsObject(this.BrowserControl)) {
+      this.ClearWorkspaceHole()
+      return false
+    }
+
+    browserRect := this.GetBrowserClientRect()
+    holeRect := this.GetWorkspaceBrowserRect()
+    if (!IsObject(browserRect) || !IsObject(holeRect)) {
+      this.ClearWorkspaceHole()
+      return false
+    }
+
+    holeX := Max(0, holeRect.X)
+    holeY := Max(0, holeRect.Y)
+    holeR := Min(browserRect.W, holeX + holeRect.W)
+    holeB := Min(browserRect.H, holeY + holeRect.H)
+    if (holeR - holeX < 320 || holeB - holeY < 240) {
+      this.ClearWorkspaceHole()
+      return false
+    }
+    nextRect := holeX "," holeY "," (holeR - holeX) "," (holeB - holeY) "," browserRect.W "," browserRect.H
+    if (this.WorkspaceHoleApplied && this.LastWorkspaceHoleRect == nextRect)
+      return true
+
+    outer := 0
+    hole := 0
+    try {
+      outer := DllCall("CreateRectRgn", "Int", 0, "Int", 0, "Int", browserRect.W, "Int", browserRect.H, "Ptr")
+      hole := DllCall("CreateRectRgn", "Int", holeX, "Int", holeY, "Int", holeR, "Int", holeB, "Ptr")
+      if (!outer || !hole)
+        throw Error("Could not create workspace region.")
+      ; Clip only the hosted browser child. The top-level GUI keeps its normal DWM frame.
+      if (!DllCall("CombineRgn", "Ptr", outer, "Ptr", outer, "Ptr", hole, "Int", 4, "Int"))
+        throw Error("Could not combine workspace region.")
+      WinSetTransColor(this.TransparentWorkspaceColor, "ahk_id " this.Gui.Hwnd)
+      if (!DllCall("SetWindowRgn", "Ptr", this.BrowserControl.Hwnd, "Ptr", outer, "Int", true, "Int"))
+        throw Error("Could not apply workspace region.")
+      outer := 0
+      this.WorkspaceHoleApplied := true
+      this.LastWorkspaceHoleRect := nextRect
+      return true
+    } catch as err {
+      this.Logger.Warn("Workspace transparency failed: " err.Message)
+      this.ClearWorkspaceHole()
+      return false
+    } finally {
+      if (hole)
+        DllCall("DeleteObject", "Ptr", hole)
+      if (outer)
+        DllCall("DeleteObject", "Ptr", outer)
+    }
+  }
+
+  ClearWorkspaceHole() {
+    if (!IsObject(this.Gui))
+      return
+    try {
+      if (IsObject(this.BrowserControl))
+        DllCall("SetWindowRgn", "Ptr", this.BrowserControl.Hwnd, "Ptr", 0, "Int", true, "Int")
+      WinSetTransColor("Off", "ahk_id " this.Gui.Hwnd)
+    }
+    this.WorkspaceHoleApplied := false
+    this.LastWorkspaceHoleRect := ""
+  }
+
+  GetBrowserClientRect() {
+    try {
+      this.BrowserControl.GetPos(,, &width, &height)
+      return { X: 0, Y: 0, W: width, H: height }
+    } catch {
+      return ""
+    }
+  }
+
+  GetWorkspaceBrowserRect(requireVisible := true) {
+    return this.GetBrowserElementRect("robloxWorkspace", requireVisible)
+  }
+
+  GetBrowserElementRect(id, requireVisible := true) {
+    try {
+      doc := this.Browser.Document
+      el := doc.getElementById(id)
+      if (!IsObject(el))
+        return ""
+      rect := el.getBoundingClientRect()
+      width := Round(rect.right - rect.left)
+      height := Round(rect.bottom - rect.top)
+      if (requireVisible && (width < 320 || height < 240))
+        return ""
+      return {
+        X: Round(rect.left),
+        Y: Round(rect.top),
+        W: width,
+        H: height
+      }
+    } catch as err {
+      this.Logger.Warn("Browser element bounds failed: " id " - " err.Message)
       return ""
     }
   }
@@ -545,7 +925,7 @@ class WebViewAppGui {
   }
 
   ShowAndFocusEditor() {
-    this.ExecScript("var b=document.querySelector('.nav button[data-tab='dashboard']'); if (b) b.click(); var s=document.getElementById('dashboardShell'); if (s) s.className='dashboard-shell'; var t=document.getElementById('editorToggleButton'); if (t) t.innerText='Hide Editor'; var e=document.getElementById('macroGrid'); if (e) e.focus();")
+    this.ExecScript("var b=document.querySelector('.nav button[data-tab='dashboard']'); if (b) b.click(); var s=document.getElementById('dashboardShell'); if (s) s.className=s.className.replace(/\s?editor-hidden/g,''); var t=document.getElementById('editorToggleButton'); if (t) t.innerText='Hide Editor'; var e=document.getElementById('macroGrid'); if (e) e.focus();")
     this.ReloadEditorFromFile(false)
     try this.Gui.Show()
   }
@@ -553,9 +933,12 @@ class WebViewAppGui {
   CloseApplication() {
     this.Logger.Info("Application close requested by GUI window.")
     this.UnregisterClipboardHotkeys()
+    try OnMessage(0x0006, this.ActivateHandler, 0)
     SetTimer(this.BridgeHandler, 0)
     SetTimer(this.AttachHandler, 0)
-    this.Roblox.Restore()
+    SetTimer(this.ResizeSyncHandler, 0)
+    this.CurrentRobloxSyncInterval := 0
+    this.DetachRobloxWorkspace(false)
     this.Controller.ExitApplication()
   }
 

@@ -7,7 +7,13 @@
   <title>MacrobloX</title>
   <link rel="stylesheet" href="style.css">
 </head>
-<body class="theme-dark">
+<body class="theme-light">
+  <script>
+    (function () {
+      var match = /[?&]theme=(light|dark)(?:&|$)/i.exec(window.location.search || "");
+      document.body.className = match && match[1].toLowerCase() === "dark" ? "theme-dark" : "theme-light";
+    })();
+  </script>
   <input type="hidden" id="bridgePayload" value="">
   <input type="hidden" id="editorPayload" value="">
   <input type="hidden" id="clipboardPayload" value="">

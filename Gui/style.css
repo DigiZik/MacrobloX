@@ -346,12 +346,23 @@ button.danger {
   table-layout: auto;
 }
 
+.dashboard-shell.workspace-fixed {
+  display: block;
+  white-space: nowrap;
+}
+
 .workspace-panel {
   display: table-cell;
   height: 100%;
   padding: 0;
   overflow: hidden;
   vertical-align: top;
+}
+
+.dashboard-shell.workspace-fixed .workspace-panel {
+  display: inline-block;
+  vertical-align: top;
+  white-space: normal;
 }
 
 .workspace-header {
@@ -370,6 +381,10 @@ button.danger {
   height: calc(100vh - 130px);
   min-height: 360px;
   background: #0b0f18;
+}
+
+.dashboard-shell.workspace-fixed #robloxWorkspace {
+  min-height: 0;
 }
 
 .theme-light #robloxWorkspace {
@@ -395,6 +410,13 @@ button.danger {
   border-left: 0;
   border-top-left-radius: 0;
   border-bottom-left-radius: 0;
+}
+
+.dashboard-shell.workspace-fixed .editor-rail {
+  display: inline-block;
+  width: 280px;
+  vertical-align: top;
+  white-space: normal;
 }
 
 .dashboard-shell.editor-hidden .editor-rail {

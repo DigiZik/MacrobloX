@@ -61,8 +61,8 @@ class AppGui {
 
     this.SettingsTitle := this.Gui.Add("Text", "xm y+10 w188 h22", "Session")
     this.SettingsTitle.SetFont("s10 bold")
-    this.ThemeChoice := this.Gui.Add("DropDownList", "xm y+4 w188", ["dark", "light"])
-    this.ThemeChoice.Choose(this.Settings.AppTheme == "dark" ? 1 : 2)
+    this.ThemeChoice := this.Gui.Add("DropDownList", "xm y+4 w188", ["light", "dark"])
+    this.ThemeChoice.Choose(this.Settings.AppTheme == "dark" ? 2 : 1)
     this.ThemeChoice.OnEvent("Change", (*) => this.QueueSaveSettings())
 
     this.MouseModeChoice := this.Gui.Add("DropDownList", "xm y+8 w188", ["screen", "window", "relative"])

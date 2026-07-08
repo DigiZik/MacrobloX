@@ -79,11 +79,12 @@
     var shell = $("dashboardShell");
     var button = $("editorToggleButton");
     if (!shell) return;
+    var fixed = shell.className.indexOf("workspace-fixed") >= 0;
     if (hidden) {
-      shell.className = "dashboard-shell editor-hidden";
+      shell.className = "dashboard-shell editor-hidden" + (fixed ? " workspace-fixed" : "");
       if (button) button.innerText = "Show Editor";
     } else {
-      shell.className = "dashboard-shell";
+      shell.className = "dashboard-shell" + (fixed ? " workspace-fixed" : "");
       if (button) button.innerText = "Hide Editor";
     }
     sendAction("syncWorkspace");
@@ -464,7 +465,7 @@
 
   window.MacrobloXApplyState = function (nextState) {
     state = nextState || {};
-    if (!settingsDirty) applyTheme(state.theme || "dark");
+    if (!settingsDirty) applyTheme(state.theme || "light");
     setText("versionLabel", state.version || "");
     setText("aboutVersion", "Version " + (state.version || ""));
     setText("statusPill", state.status || "Idle");
@@ -473,7 +474,7 @@
     setText("macroPath", state.currentMacroFile || "");
     setText("macroFolder", state.macroDir || "");
     setText("saveState", state.saveState || "");
-    setText("workspaceMessage", state.robloxAttached ? "" : "Roblox will overlay here when detected.");
+    setText("workspaceMessage", state.robloxAttached ? "" : (state.robloxStatus || "Roblox will overlay here when detected."));
 
     setText("recordButton", state.recordButton || "Record");
     setText("playButton", state.playButton || "Play");
@@ -501,6 +502,34 @@
     setValue("loopDelay", state.loopDelay || 2000);
     setValue("loopSpeed", state.loopSpeed || "1x");
     updateScreenshotControls();
+  };
+
+  window.MacrobloXSetWorkspaceSize = function (width, height) {
+    var shell = $("dashboardShell");
+    var panel = document.querySelector(".workspace-panel");
+    var workspace = $("robloxWorkspace");
+    if (!shell || !panel || !workspace) return;
+
+    width = Math.round(width || 0);
+    height = Math.round(height || 0);
+    if (width > 0 && height > 0) {
+      width = Math.max(320, width);
+      height = Math.max(240, height);
+      if (shell.className.indexOf("workspace-fixed") < 0) shell.className += " workspace-fixed";
+      panel.style.width = width + "px";
+      panel.style.minWidth = width + "px";
+      panel.style.maxWidth = width + "px";
+      workspace.style.width = width + "px";
+      workspace.style.height = height + "px";
+      return;
+    }
+
+    shell.className = shell.className.replace(/\s?workspace-fixed/g, "");
+    panel.style.width = "";
+    panel.style.minWidth = "";
+    panel.style.maxWidth = "";
+    workspace.style.width = "";
+    workspace.style.height = "";
   };
 
   window.MacrobloXSetScreenshotCrop = function (crop) {

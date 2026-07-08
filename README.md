@@ -44,7 +44,7 @@ The Reset button safely stops recording/playback/looping, releases held modifier
 
 Closing the main window exits the recorder and stops active recording, playback, and loop processes. Minimizing the window leaves the recorder running.
 
-When Roblox is not detected, starting a recording, playback, or loop playback minimizes MacrobloX so standalone desktop automation has a clear workspace. Stopping recording, finishing playback, or stopping loop playback restores and activates the app. When Roblox is detected, the app stays open and uses the Roblox workspace overlay instead.
+When Roblox is not detected, starting a recording, playback, or loop playback minimizes MacrobloX so standalone desktop automation has a clear workspace. Stopping recording, finishing playback, or stopping loop playback restores and activates the app. When Roblox is detected, Roblox remains an independent window positioned behind the dashboard workspace, while MacrobloX clips the hosted browser around a native transparent workspace gap so Roblox shows through without changing the app's native titlebar. In restore-down mode, MacrobloX treats the restored Roblox client area as the workspace size source: entering restored mode first normalizes the independent Roblox play area to 800x600 at the current dashboard workspace position, fixes the dashboard workspace element to that client size so Roblox fills the workspace without showing its own titlebar, follows later Roblox resizes, and lets dragging the MacrobloX titlebar move the workspace while Roblox follows after a short debounce. MacrobloX does not embed, own, or restyle the Roblox window, which avoids extra blank Roblox game-client thumbnails in the Windows taskbar.
 
 ### Hotkeys
 
@@ -57,12 +57,12 @@ When Roblox is not detected, starting a recording, playback, or loop playback mi
 
 - `MacroRecorder.ahk` wires the app together with `#Include` statements, dependency construction, and hotkey setup.
 - `Gui/` contains the local HTML, CSS, and JavaScript for the modern app shell.
-- `Lib/WebViewAppGui.ahk` hosts the web shell and bridges it to the controller.
+- `Lib/WebViewAppGui.ahk` hosts the web shell, bridges it to the controller, and keeps the Roblox workspace as a native transparent gap instead of a top-level window region.
 - `Lib/AppGui.ahk` keeps the previous native GUI implementation for reference/fallback.
 - `Lib/MacroController.ahk` coordinates hotkeys, buttons, and app actions.
 - `Lib/MacroRecorderEngine.ahk` records keyboard/mouse actions and builds macro output.
 - `Lib/PlaybackController.ahk` runs macros and loop playback.
-- `Lib/RobloxWindowService.ahk` detects the Roblox player window and overlays/restores it above the GUI workspace.
+- `Lib/RobloxWindowService.ahk` detects the Roblox player window and positions it as an independent window behind the native GUI workspace gap.
 - `Lib/ConfigManager.ahk` reads/writes `MacroRecorder.ini`.
 - `Lib/MacroFileService.ahk` manages macro paths and file content.
 - `Lib/DiscordWebhookService.ahk` sends optional Discord notifications.
@@ -107,7 +107,7 @@ MouseMode=screen
 RecordSleep=true
 
 [Ui]
-Theme=dark
+Theme=light
 
 [Discord]
 Enabled=false

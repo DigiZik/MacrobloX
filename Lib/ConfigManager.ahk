@@ -10,7 +10,7 @@ class ConfigManager {
       "LOOP_DELAY", 2000,
       "MouseMode", "screen",
       "RecordSleep", "true",
-      "APP_THEME", "dark",
+      "APP_THEME", "light",
       "CHECK_UPDATES_ON_STARTUP", "true",
       "DISCORD_ENABLED", "false",
       "DISCORD_WEBHOOK_URL", "",
@@ -142,7 +142,7 @@ class MacroRecorderSettings {
       this.MouseMode := "screen"
     this.RecordSleep := "true"
     if (this.AppTheme != "light" && this.AppTheme != "dark")
-      this.AppTheme := "dark"
+      this.AppTheme := "light"
     this.CheckUpdatesOnStartup := ConfigManager.NormalizeBool(this.CheckUpdatesOnStartup, "true")
     this.DiscordEnabled := ConfigManager.NormalizeBool(this.DiscordEnabled, "false")
     this.DiscordWebhookUrl := Trim(this.DiscordWebhookUrl)
