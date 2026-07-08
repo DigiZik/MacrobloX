@@ -6,6 +6,7 @@ class PlaybackController {
     this.Logger := logger
     this.LoopPlaybackHandler := ObjBindMethod(this, "LoopPlaybackTick")
     this.PlaybackWatchHandler := ""
+    this.LoopStoppedCallback := ""
     this.PowerRequestActive := false
   }
 
@@ -64,6 +65,7 @@ class PlaybackController {
   StopLoop() {
     if (!this.State.LoopPid && !this.State.Looping)
       return false
+    this.LoopStoppedCallback := ""
     this.State.Looping := false
     SetTimer(this.LoopPlaybackHandler, 0)
     if (IsObject(this.PlaybackWatchHandler))
@@ -75,8 +77,9 @@ class PlaybackController {
     return true
   }
 
-  StartLoop() {
+  StartLoop(onStopped := "") {
     this.KeepSystemAwake()
+    this.LoopStoppedCallback := onStopped
     this.State.Looping := true
     SetTimer(this.LoopPlaybackHandler, -10)
   }
@@ -88,6 +91,8 @@ class PlaybackController {
       this.State.Looping := false
       this.State.LoopPid := 0
       this.AllowSystemSleep()
+      if (IsObject(this.LoopStoppedCallback))
+        try this.LoopStoppedCallback.Call()
       return
     }
     this.State.LoopPid := 0

@@ -12,6 +12,15 @@ class ConfigManager {
       "RecordSleep", "true",
       "APP_THEME", "dark",
       "CHECK_UPDATES_ON_STARTUP", "true",
+      "DISCORD_ENABLED", "false",
+      "DISCORD_WEBHOOK_URL", "",
+      "DISCORD_USER_ID", "",
+      "DISCORD_SEND_SCREENSHOTS", "false",
+      "DISCORD_SCREENSHOT_CROP_ENABLED", "false",
+      "DISCORD_SCREENSHOT_CROP_X", 0,
+      "DISCORD_SCREENSHOT_CROP_Y", 0,
+      "DISCORD_SCREENSHOT_CROP_W", 0,
+      "DISCORD_SCREENSHOT_CROP_H", 0,
       "MACRO_DIR", scriptDir "\Macros",
       "CURRENT_MACRO_FILE", scriptDir "\Macros\DefaultMacro.txt",
       "ConfigPath", configPath
@@ -43,6 +52,15 @@ class ConfigManager {
     settings.RecordSleep := IniRead(path, "Recording", "RecordSleep", settings.RecordSleep)
     settings.AppTheme := IniRead(path, "Ui", "Theme", settings.AppTheme)
     settings.CheckUpdatesOnStartup := IniRead(path, "Updates", "CheckOnStartup", settings.CheckUpdatesOnStartup)
+    settings.DiscordEnabled := IniRead(path, "Discord", "Enabled", settings.DiscordEnabled)
+    settings.DiscordWebhookUrl := IniRead(path, "Discord", "WebhookUrl", settings.DiscordWebhookUrl)
+    settings.DiscordUserId := IniRead(path, "Discord", "UserId", settings.DiscordUserId)
+    settings.DiscordSendScreenshots := IniRead(path, "Discord", "SendScreenshots", settings.DiscordSendScreenshots)
+    settings.DiscordScreenshotCropEnabled := IniRead(path, "Discord", "ScreenshotCropEnabled", settings.DiscordScreenshotCropEnabled)
+    settings.DiscordScreenshotCropX := IniRead(path, "Discord", "ScreenshotCropX", settings.DiscordScreenshotCropX)
+    settings.DiscordScreenshotCropY := IniRead(path, "Discord", "ScreenshotCropY", settings.DiscordScreenshotCropY)
+    settings.DiscordScreenshotCropW := IniRead(path, "Discord", "ScreenshotCropW", settings.DiscordScreenshotCropW)
+    settings.DiscordScreenshotCropH := IniRead(path, "Discord", "ScreenshotCropH", settings.DiscordScreenshotCropH)
     settings.MacroDir := IniRead(path, "Files", "MacroDir", settings.MacroDir)
     settings.CurrentMacroFile := IniRead(path, "Files", "CurrentMacroFile", settings.CurrentMacroFile)
   }
@@ -58,6 +76,15 @@ class ConfigManager {
       IniWrite(settings.RecordSleep, settings.ConfigPath, "Recording", "RecordSleep")
       IniWrite(settings.AppTheme, settings.ConfigPath, "Ui", "Theme")
       IniWrite(settings.CheckUpdatesOnStartup, settings.ConfigPath, "Updates", "CheckOnStartup")
+      IniWrite(settings.DiscordEnabled, settings.ConfigPath, "Discord", "Enabled")
+      IniWrite(settings.DiscordWebhookUrl, settings.ConfigPath, "Discord", "WebhookUrl")
+      IniWrite(settings.DiscordUserId, settings.ConfigPath, "Discord", "UserId")
+      IniWrite(settings.DiscordSendScreenshots, settings.ConfigPath, "Discord", "SendScreenshots")
+      IniWrite(settings.DiscordScreenshotCropEnabled, settings.ConfigPath, "Discord", "ScreenshotCropEnabled")
+      IniWrite(settings.DiscordScreenshotCropX, settings.ConfigPath, "Discord", "ScreenshotCropX")
+      IniWrite(settings.DiscordScreenshotCropY, settings.ConfigPath, "Discord", "ScreenshotCropY")
+      IniWrite(settings.DiscordScreenshotCropW, settings.ConfigPath, "Discord", "ScreenshotCropW")
+      IniWrite(settings.DiscordScreenshotCropH, settings.ConfigPath, "Discord", "ScreenshotCropH")
       IniWrite(settings.MacroDir, settings.ConfigPath, "Files", "MacroDir")
       IniWrite(settings.CurrentMacroFile, settings.ConfigPath, "Files", "CurrentMacroFile")
       return true
@@ -96,6 +123,15 @@ class MacroRecorderSettings {
     this.RecordSleep := defaults["RecordSleep"]
     this.AppTheme := defaults["APP_THEME"]
     this.CheckUpdatesOnStartup := defaults["CHECK_UPDATES_ON_STARTUP"]
+    this.DiscordEnabled := defaults["DISCORD_ENABLED"]
+    this.DiscordWebhookUrl := defaults["DISCORD_WEBHOOK_URL"]
+    this.DiscordUserId := defaults["DISCORD_USER_ID"]
+    this.DiscordSendScreenshots := defaults["DISCORD_SEND_SCREENSHOTS"]
+    this.DiscordScreenshotCropEnabled := defaults["DISCORD_SCREENSHOT_CROP_ENABLED"]
+    this.DiscordScreenshotCropX := defaults["DISCORD_SCREENSHOT_CROP_X"]
+    this.DiscordScreenshotCropY := defaults["DISCORD_SCREENSHOT_CROP_Y"]
+    this.DiscordScreenshotCropW := defaults["DISCORD_SCREENSHOT_CROP_W"]
+    this.DiscordScreenshotCropH := defaults["DISCORD_SCREENSHOT_CROP_H"]
     this.MacroDir := defaults["MACRO_DIR"]
     this.CurrentMacroFile := defaults["CURRENT_MACRO_FILE"]
     this.ConfigPath := defaults["ConfigPath"]
@@ -108,6 +144,22 @@ class MacroRecorderSettings {
     if (this.AppTheme != "light" && this.AppTheme != "dark")
       this.AppTheme := "dark"
     this.CheckUpdatesOnStartup := ConfigManager.NormalizeBool(this.CheckUpdatesOnStartup, "true")
+    this.DiscordEnabled := ConfigManager.NormalizeBool(this.DiscordEnabled, "false")
+    this.DiscordWebhookUrl := Trim(this.DiscordWebhookUrl)
+    this.DiscordUserId := Trim(this.DiscordUserId)
+    this.DiscordSendScreenshots := ConfigManager.NormalizeBool(this.DiscordSendScreenshots, "false")
+    this.DiscordScreenshotCropEnabled := ConfigManager.NormalizeBool(this.DiscordScreenshotCropEnabled, "false")
+    this.DiscordScreenshotCropX := this.NormalizeInteger(this.DiscordScreenshotCropX, 0)
+    this.DiscordScreenshotCropY := this.NormalizeInteger(this.DiscordScreenshotCropY, 0)
+    this.DiscordScreenshotCropW := this.NormalizeInteger(this.DiscordScreenshotCropW, 0)
+    this.DiscordScreenshotCropH := this.NormalizeInteger(this.DiscordScreenshotCropH, 0)
+    if (this.DiscordScreenshotCropW < 16 || this.DiscordScreenshotCropH < 16) {
+      this.DiscordScreenshotCropEnabled := "false"
+      this.DiscordScreenshotCropX := 0
+      this.DiscordScreenshotCropY := 0
+      this.DiscordScreenshotCropW := 0
+      this.DiscordScreenshotCropH := 0
+    }
     if (!IsInteger(this.LoopDelay) || this.LoopDelay < 0)
       this.LoopDelay := 1000
     this.MacroDir := ConfigManager.NormalizeFolderPath(this.MacroDir, A_ScriptDir "\Macros")
@@ -144,5 +196,23 @@ class MacroRecorderSettings {
   GetFileNameFromPath(path) {
     SplitPath(path, &name)
     return name
+  }
+
+  NormalizeInteger(value, fallback := 0) {
+    value := Trim(value)
+    return RegExMatch(value, "^-?\d+$") ? Integer(value) : fallback
+  }
+
+  HasDiscordScreenshotCrop() {
+    return this.DiscordScreenshotCropEnabled == "true"
+      && this.DiscordScreenshotCropW >= 16
+      && this.DiscordScreenshotCropH >= 16
+  }
+
+  DiscordScreenshotCropSummary() {
+    if (!this.HasDiscordScreenshotCrop())
+      return "Full current screen"
+    return "Crop: " this.DiscordScreenshotCropW "x" this.DiscordScreenshotCropH
+      . " at " this.DiscordScreenshotCropX "," this.DiscordScreenshotCropY
   }
 }

@@ -1,5 +1,5 @@
 class MacroController {
-  __New(settings, state, recorder, playback, guiApp, macroFiles, notifier, logger, updater) {
+  __New(settings, state, recorder, playback, guiApp, macroFiles, notifier, logger, updater, discord := "") {
     this.Settings := settings
     this.State := state
     this.Recorder := recorder
@@ -9,6 +9,7 @@ class MacroController {
     this.Notifier := notifier
     this.Logger := logger
     this.Updater := updater
+    this.Discord := discord
   }
 
   RegisterHotkeys() {
@@ -43,14 +44,17 @@ class MacroController {
         this.StopRecording()
       try this.Playback.ReleaseModifiers()
       this.Gui.UpdateState("Installing update " result.VersionTag)
+      this.NotifyDiscord("MacrobloX update installing", "Installing " result.VersionTag ".", 3447003, false)
       this.Updater.DownloadAndInstall(result)
       return true
     } catch as err {
       if (showUpToDate)
         this.Logger.ShowError("Update check failed", "Could not check for MacrobloX updates.", err)
       else
-        this.Logger.Error("Startup update check failed", err)
-      this.Gui.UpdateState()
+        this.Logger.Warn("Startup update check skipped: " this.FormatErrorMessage(err))
+      this.NotifyDiscordError("Update check failed", err)
+      if (showUpToDate)
+        this.Gui.UpdateState()
       return false
     }
   }
@@ -66,7 +70,9 @@ class MacroController {
       return
     if (this.Recorder.Start()) {
       this.Notifier.Show("Recording")
+      try this.Gui.MinimizeForStandaloneRecording()
       this.Gui.UpdateState()
+      this.NotifyDiscord("Recording started", "Recording to " this.Settings.GetFileNameFromPath(this.Settings.CurrentMacroFile) ".", 16753920, true)
     }
   }
 
@@ -79,6 +85,7 @@ class MacroController {
       return true
     } catch as err {
       this.Logger.ShowError("Recording setup failed", "Could not create a macro file for recording.", err)
+      this.NotifyDiscordError("Recording setup failed", err)
       this.Gui.UpdateState()
       return false
     }
@@ -88,10 +95,14 @@ class MacroController {
     try {
       this.Recorder.Stop()
       this.Notifier.Hide()
+      try this.Gui.RestoreAfterStandaloneRecording()
       this.Gui.ReloadEditorFromFile(false)
       this.Gui.UpdateState()
+      this.NotifyDiscord("Recording stopped", "Saved " this.Settings.GetFileNameFromPath(this.Settings.CurrentMacroFile) ".", 5763719, true)
     } catch as err {
+      try this.Gui.RestoreAfterStandaloneRecording()
       this.Logger.ShowError("Stop recording failed", "Could not stop recording.", err)
+      this.NotifyDiscordError("Stop recording failed", err)
     }
   }
 
@@ -102,13 +113,19 @@ class MacroController {
       this.StopRecording()
     if (this.State.Playing)
       return
+    try this.Gui.MinimizeForStandalonePlayback()
     if (this.Playback.RunMacroFile(false)) {
       this.Gui.UpdateState("Playing macro")
+      this.NotifyDiscord("Playback started", this.Settings.GetFileNameFromPath(this.Settings.CurrentMacroFile), 3447003, true)
       this.Playback.WatchPlayback(ObjBindMethod(this, "PlaybackFinished"))
+    } else {
+      try this.Gui.RestoreAfterStandalonePlayback()
     }
   }
 
   PlaybackFinished() {
+    this.NotifyDiscord("Playback finished", this.Settings.GetFileNameFromPath(this.Settings.CurrentMacroFile), 5763719, true)
+    try this.Gui.RestoreAfterStandalonePlayback()
     this.Notifier.Timed("Macro finished", "y35", "Green|00FF00", 700)
     this.Gui.UpdateState()
   }
@@ -121,18 +138,28 @@ class MacroController {
       this.StopRecording()
     if (this.State.Playing)
       this.StopLoop(false)
-    this.Playback.StartLoop()
+    this.Playback.StartLoop(ObjBindMethod(this, "LoopPlaybackStoppedByPlayback"))
+    try this.Gui.MinimizeForStandalonePlayback()
     this.Notifier.Timed("LOOP Started", "y35", "Green|00FF00", 2000)
     this.Gui.UpdateState()
+    this.NotifyDiscord("Loop started", this.Settings.GetFileNameFromPath(this.Settings.CurrentMacroFile), 3447003, true)
   }
 
   StopLoop(showTip := true) {
     stopped := this.Playback.StopLoop()
+    if (stopped)
+      try this.Gui.RestoreAfterStandalonePlayback()
     if (stopped && showTip) {
       this.Notifier.Timed("LOOP Stopped", "y35", "Red|FF4444", 2000)
       this.Gui.UpdateState()
+      this.NotifyDiscord("Loop stopped", this.Settings.GetFileNameFromPath(this.Settings.CurrentMacroFile), 15158332, true)
     }
     return stopped
+  }
+
+  LoopPlaybackStoppedByPlayback() {
+    try this.Gui.RestoreAfterStandalonePlayback()
+    this.Gui.UpdateState("Loop stopped")
   }
 
   EditKeyAction() {
@@ -213,6 +240,7 @@ class MacroController {
       this.Notifier.Timed("Macro Created")
     } catch as err {
       this.Logger.ShowError("New macro failed", "Could not create macro file.", err)
+      this.NotifyDiscordError("New macro failed", err)
     }
   }
 
@@ -242,6 +270,7 @@ class MacroController {
       return this.SaveEditorAs()
     }
     try {
+      this.Gui.UpdateState("Saving macro")
       this.MacroFiles.WriteCurrent(this.Gui.EditorValue)
       this.State.EditorDirty := false
       if (showTip)
@@ -251,6 +280,7 @@ class MacroController {
       return true
     } catch as err {
       this.Logger.ShowError("Save failed", "Could not save macro file.", err)
+      this.NotifyDiscordError("Save failed", err)
       this.Gui.UpdateState()
       return false
     }
@@ -270,6 +300,7 @@ class MacroController {
       return false
     path := this.Settings.ResolveMacroPath(path)
     try {
+      this.Gui.UpdateState("Saving macro as")
       this.MacroFiles.WriteFile(path, this.Gui.EditorValue)
       this.SetCurrentMacroFile(path, true, true)
       this.Notifier.Timed("Macro Saved As")
@@ -277,6 +308,7 @@ class MacroController {
       return true
     } catch as err {
       this.Logger.ShowError("Save As failed", "Could not save macro file.", err)
+      this.NotifyDiscordError("Save As failed", err)
     }
     return false
   }
@@ -308,9 +340,11 @@ class MacroController {
       this.Gui.ReloadEditorFromFile(false)
       this.Notifier.Timed("Macro Reset")
       this.Gui.UpdateState("Resetting...")
+      this.NotifyDiscord("Macro reset", "Reset to DefaultMacro.txt.", 15105570, false)
       SetTimer((*) => Reload(), -250)
     } catch as err {
       this.Logger.ShowError("Reset failed", "Could not reset macro file.", err)
+      this.NotifyDiscordError("Reset failed", err)
       this.Gui.UpdateState()
     }
   }
@@ -331,5 +365,38 @@ class MacroController {
     try this.Playback.AllowSystemSleep()
     try this.Notifier.Hide()
     ExitApp()
+  }
+
+  TestWebhook(settingsOverride := "") {
+    if (!IsObject(this.Discord)) {
+      this.Gui.UpdateState("Discord webhook unavailable")
+      return false
+    }
+    this.Gui.UpdateState("Webhook test")
+    requireScreenshot := IsObject(settingsOverride) && settingsOverride.DiscordSendScreenshots == "true"
+    if (this.Discord.SendStatus("MacrobloX webhook test", "Discord notifications are connected.", 3447003, true, settingsOverride, requireScreenshot)) {
+      this.Notifier.Timed("Webhook Sent", "y35", "Green|00FF00", 1200)
+      this.Gui.UpdateState("Webhook test sent")
+      return true
+    }
+    this.Gui.UpdateState("Webhook test failed")
+    detail := this.Discord.LastError != "" ? "`n`n" this.Discord.LastError : ""
+    MsgBox("Webhook test failed." detail "`n`nCheck the Discord settings and MacroRecorder.log.", "Discord webhook", 4096)
+    return false
+  }
+
+  NotifyDiscord(title, description := "", color := 3447003, includeScreenshot := false) {
+    if (!IsObject(this.Discord))
+      return false
+    return this.Discord.SendStatus(title, description, color, includeScreenshot)
+  }
+
+  NotifyDiscordError(title, err := "") {
+    description := IsObject(err) ? err.Message : err
+    return this.NotifyDiscord(title, description, 15158332, false)
+  }
+
+  FormatErrorMessage(err := "") {
+    return IsObject(err) ? err.Message : err
   }
 }

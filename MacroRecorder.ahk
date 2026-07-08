@@ -10,13 +10,17 @@
 #Include Lib\MacroRecorderEngine.ahk
 #Include Lib\PlaybackController.ahk
 #Include Lib\RobloxWindowService.ahk
+#Include Lib\ScreenshotService.ahk
+#Include Lib\DiscordWebhookService.ahk
 #Include Lib\UpdateService.ahk
 #Include Lib\AppGui.ahk
+#Include Lib\WebViewAppGui.ahk
 #Include Lib\MacroController.ahk
 
 Main()
 
 Main() {
+  Persistent()
   Thread("NoTimers")
   CoordMode("ToolTip")
   SetTitleMatchMode(2)
@@ -29,11 +33,13 @@ Main() {
   macroFiles := MacroFileService(settings, logger)
   notifier := NotificationService()
   roblox := RobloxWindowService(logger)
+  screenshot := ScreenshotService(roblox, logger)
+  discord := DiscordWebhookService(settings, logger, screenshot)
   updater := UpdateService(settings, logger, A_ScriptDir)
   recorder := MacroRecorderEngine(settings, state, macroFiles, logger)
   playback := PlaybackController(settings, state, macroFiles, logger)
-  guiApp := AppGui(settings, state, macroFiles, logger, roblox)
-  controller := MacroController(settings, state, recorder, playback, guiApp, macroFiles, notifier, logger, updater)
+  guiApp := WebViewAppGui(settings, state, macroFiles, logger, roblox, screenshot)
+  controller := MacroController(settings, state, recorder, playback, guiApp, macroFiles, notifier, logger, updater, discord)
 
   guiApp.SetController(controller)
   controller.RegisterHotkeys()

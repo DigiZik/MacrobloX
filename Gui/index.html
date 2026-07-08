@@ -1,0 +1,238 @@
+<!-- saved from url=(0014)about:internet -->
+<!doctype html>
+<html>
+<head>
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta charset="utf-8">
+  <title>MacrobloX</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="theme-dark">
+  <input type="hidden" id="bridgePayload" value="">
+  <input type="hidden" id="editorPayload" value="">
+  <input type="hidden" id="clipboardPayload" value="">
+  <input type="hidden" id="screenshotCropEnabled" value="false">
+  <input type="hidden" id="screenshotCropX" value="0">
+  <input type="hidden" id="screenshotCropY" value="0">
+  <input type="hidden" id="screenshotCropW" value="0">
+  <input type="hidden" id="screenshotCropH" value="0">
+
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">M</div>
+        <div>
+          <h1>MacrobloX</h1>
+          <p id="versionLabel">Loading</p>
+        </div>
+      </div>
+
+      <nav class="nav">
+        <button class="active" data-tab="dashboard">Dashboard</button>
+        <button data-tab="settings">Settings</button>
+      </nav>
+
+      <div class="status-box">
+        <div class="status-pill" id="statusPill">Idle</div>
+        <p id="statusDetail">Ready</p>
+      </div>
+
+      <div class="command-panel">
+        <button class="primary tall" id="recordButton">Record</button>
+        <div class="command-row">
+          <button id="playButton">Play</button>
+          <button id="loopButton">Loop</button>
+        </div>
+        <button class="ghost" id="toggleHotkeysButton">Disable hotkeys</button>
+        <button class="danger" id="resetButton">Reset</button>
+      </div>
+
+      <div class="macro-summary">
+        <h3>Current Macro</h3>
+        <p class="label">File</p>
+        <p class="mono" id="macroPath">-</p>
+        <p class="label">Folder</p>
+        <p class="mono" id="macroFolder">-</p>
+        <p class="label">Save State</p>
+        <p id="saveState">Loaded</p>
+      </div>
+    </aside>
+
+    <main class="content">
+      <div class="menu-bar">
+        <div class="menu-left">
+          <div class="menu-group">
+            <span>File</span>
+            <button data-action="fileNew">New</button>
+            <button data-action="fileOpen">Open</button>
+            <button data-action="save">Save</button>
+            <button data-action="fileSaveAs">Save As</button>
+          </div>
+          <div class="menu-group">
+            <span>Tools</span>
+            <button data-action="external">Open External</button>
+            <button data-action="fileChooseFolder">Macro Folder</button>
+          </div>
+        </div>
+        <div class="menu-right">
+          <div class="menu-group">
+            <span>View</span>
+            <button id="editorToggleButton">Hide Editor</button>
+            <button data-action="focusEditor">Focus Editor</button>
+          </div>
+        </div>
+      </div>
+
+      <section id="dashboard" class="tab active">
+        <div class="dashboard-shell" id="dashboardShell">
+          <div class="workspace-panel">
+            <div class="workspace-header">
+              <div>
+                <h2>Roblox Workspace</h2>
+                <p id="robloxStatus">Roblox status unavailable</p>
+              </div>
+            </div>
+            <div id="robloxWorkspace">
+              <span id="workspaceMessage">Roblox will overlay here when detected.</span>
+            </div>
+          </div>
+
+          <aside class="editor-rail" id="editorRail">
+            <div class="editor-head">
+              <div>
+                <h2>Macro Editor</h2>
+                <p><span id="visibleRowCount">0 rows</span><span id="hiddenLineCount">0 hidden</span></p>
+              </div>
+            </div>
+
+            <div class="editor-tools">
+              <label>Add action
+                <select id="addAction">
+                  <option value="">Choose</option>
+                  <option value="Send">Send</option>
+                  <option value="Sleep">Sleep</option>
+                  <option value="MouseClick">MouseClick</option>
+                  <option value="MouseDown">MouseDown</option>
+                  <option value="MouseUp">MouseUp</option>
+                  <option value="KeyDown">KeyDown</option>
+                  <option value="KeyUp">KeyUp</option>
+                </select>
+              </label>
+              <div class="loop-row">
+                <label>Loop pause
+                  <input id="loopDelay" type="number" min="0" value="2000">
+                </label>
+                <label>Speed
+                  <select id="loopSpeed">
+                    <option value="1x">1x</option>
+                    <option value="2x">2x</option>
+                    <option value="5x">5x</option>
+                    <option value="10x">10x</option>
+                  </select>
+                </label>
+              </div>
+              <div class="editor-buttons">
+                <button id="saveButton">Save</button>
+                <button class="ghost" id="reloadButton">Reload</button>
+              </div>
+            </div>
+
+            <div class="macro-grid" id="macroGrid" tabindex="0">
+              <div class="macro-grid-head">
+                <span>Event</span>
+                <span>Key</span>
+                <span>X</span>
+                <span>Y</span>
+              </div>
+              <div id="macroRows" class="macro-rows"></div>
+            </div>
+
+            <div id="editorContextMenu" class="context-menu">
+              <button data-context="moveTop">Move Top</button>
+              <button data-context="moveUp">Move Up</button>
+              <button data-context="moveDown">Move Down</button>
+              <button data-context="moveBottom">Move Bottom</button>
+              <button data-context="delete">Delete</button>
+            </div>
+          </aside>
+        </div>
+      </section>
+
+      <section id="settings" class="tab">
+        <header class="settings-header">
+          <div>
+            <h2>Settings</h2>
+            <p id="settingsState">Changes are saved only when you click Save Settings.</p>
+          </div>
+          <button id="saveSettingsButton">Save Settings</button>
+        </header>
+
+        <div class="settings-grid">
+          <div class="settings-column settings-column-small">
+            <div class="panel">
+              <h3>Appearance</h3>
+              <label class="switch-row">
+                <span>Light theme</span>
+                <input id="themeToggle" type="checkbox">
+              </label>
+              <label>Mouse mode
+                <select id="mouseMode">
+                  <option value="screen">screen</option>
+                  <option value="window">window</option>
+                  <option value="relative">relative</option>
+                </select>
+              </label>
+              <label class="switch-row">
+                <span>Check updates at startup</span>
+                <input id="updateStartup" type="checkbox">
+              </label>
+            </div>
+
+            <div class="panel">
+              <h3>About</h3>
+              <p id="aboutVersion">MacrobloX</p>
+              <p class="muted">AutoHotkey v2 macro recorder for Roblox-focused workflows.</p>
+            </div>
+          </div>
+
+          <div class="settings-column settings-column-wide">
+            <div class="panel webhook-panel">
+              <h3>Discord Webhook</h3>
+              <label class="switch-row">
+                <span>Enable webhook</span>
+                <input id="discordEnabled" type="checkbox">
+              </label>
+              <label>Webhook URL
+                <input id="discordWebhookUrl" type="text" autocomplete="off" spellcheck="false" placeholder="https://discord.com/api/webhooks/...">
+              </label>
+              <label>Discord user ID
+                <input id="discordUserId" type="text" placeholder="Optional ping target">
+              </label>
+              <label class="switch-row">
+                <span>Attach screenshots</span>
+                <input id="discordScreenshots" type="checkbox">
+              </label>
+              <div id="screenshotCropControls" class="crop-controls">
+                <div>
+                  <p class="label">Screenshot crop</p>
+                  <p id="screenshotCropSummary">Full current screen</p>
+                </div>
+                <div class="crop-buttons">
+                  <button class="ghost" id="setScreenshotCropButton">Set crop</button>
+                  <button class="ghost" id="clearScreenshotCropButton">Clear crop</button>
+                </div>
+              </div>
+              <div class="settings-actions-inline">
+                <button class="ghost" id="testWebhookButton">Test webhook</button>
+              </div>
+              <p class="muted">Screenshots may include visible Roblox gameplay. The webhook URL is saved locally in MacroRecorder.ini and is never written to MacroRecorder.log.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
