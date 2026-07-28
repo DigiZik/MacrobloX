@@ -77,6 +77,9 @@ class WebViewAppGui {
       this.BrowserControl := this.Gui.Add("ActiveX", "x0 y0 w960 h640", "Shell.Explorer")
       this.Browser := this.BrowserControl.Value
       this.Browser.Silent := true
+      ; Keep the layered style stable so DWM retains native caption hit-testing
+      ; across minimize, maximize, and restore transitions.
+      WinSetTransColor(this.TransparentWorkspaceColor, "ahk_id " this.Gui.Hwnd)
       this.Gui.OnEvent("Size", ObjBindMethod(this, "Resize"))
       this.Gui.OnEvent("Close", (*) => this.CloseApplication())
       OnMessage(0x0006, this.ActivateHandler)
@@ -168,13 +171,10 @@ class WebViewAppGui {
     this.IsMinimized := false
     try {
       hwnd := "ahk_id " this.Gui.Hwnd
-      WinShow(hwnd)
-      if (this.RecordingMinMax == 1) {
+      if (this.RecordingMinMax == 1)
         this.Gui.Show("Maximize")
-      } else {
-        WinRestore(hwnd)
+      else
         this.Gui.Show("Restore")
-      }
       WinActivate(hwnd)
       this.QueueRobloxWorkspaceSync()
       this.UpdateState()
@@ -794,7 +794,6 @@ class WebViewAppGui {
       ; Clip only the hosted browser child. The top-level GUI keeps its normal DWM frame.
       if (!DllCall("CombineRgn", "Ptr", outer, "Ptr", outer, "Ptr", hole, "Int", 4, "Int"))
         throw Error("Could not combine workspace region.")
-      WinSetTransColor(this.TransparentWorkspaceColor, "ahk_id " this.Gui.Hwnd)
       if (!DllCall("SetWindowRgn", "Ptr", this.BrowserControl.Hwnd, "Ptr", outer, "Int", true, "Int"))
         throw Error("Could not apply workspace region.")
       outer := 0
@@ -819,7 +818,6 @@ class WebViewAppGui {
     try {
       if (IsObject(this.BrowserControl))
         DllCall("SetWindowRgn", "Ptr", this.BrowserControl.Hwnd, "Ptr", 0, "Int", true, "Int")
-      WinSetTransColor("Off", "ahk_id " this.Gui.Hwnd)
     }
     this.WorkspaceHoleApplied := false
     this.LastWorkspaceHoleRect := ""
