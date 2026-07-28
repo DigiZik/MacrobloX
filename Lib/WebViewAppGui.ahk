@@ -14,6 +14,7 @@ class WebViewAppGui {
     this.AttachHandler := ObjBindMethod(this, "SyncRobloxWorkspace")
     this.ResizeSyncHandler := ObjBindMethod(this, "SyncRobloxWorkspace")
     this.ActivateHandler := ObjBindMethod(this, "HandleGuiActivate")
+    this.NativeMoveSizeHandler := ObjBindMethod(this, "HandleNativeMoveSize")
     this.CopyHandler := ObjBindMethod(this, "CopyFocusedInput")
     this.CutHandler := ObjBindMethod(this, "CutFocusedInput")
     this.PasteHandler := ObjBindMethod(this, "PasteFocusedInput")
@@ -33,6 +34,8 @@ class WebViewAppGui {
     this.RobloxMinWindowH := 600
     this.CurrentMinSize := ""
     this.CurrentRobloxSyncInterval := 0
+    this.IsInNativeMoveSize := false
+    this.LastGuiMinMax := ""
     this.FollowingRobloxWindow := false
     this.LastFollowedRobloxRect := ""
     this.LastSavedText := "Loaded"
@@ -77,6 +80,8 @@ class WebViewAppGui {
       this.Gui.OnEvent("Size", ObjBindMethod(this, "Resize"))
       this.Gui.OnEvent("Close", (*) => this.CloseApplication())
       OnMessage(0x0006, this.ActivateHandler)
+      OnMessage(0x0231, this.NativeMoveSizeHandler)  ; WM_ENTERSIZEMOVE
+      OnMessage(0x0232, this.NativeMoveSizeHandler)  ; WM_EXITSIZEMOVE
 
       indexPath := A_ScriptDir "\Gui\index.html"
       theme := this.Settings.AppTheme == "dark" ? "dark" : "light"
@@ -118,6 +123,8 @@ class WebViewAppGui {
   }
 
   Resize(thisGui, minMax, width, height) {
+    restoredFromNonNormal := minMax == 0 && this.LastGuiMinMax != "" && this.LastGuiMinMax != 0
+    this.LastGuiMinMax := minMax
     if (minMax == -1) {
       this.IsMinimized := true
       this.ResetRestoredRobloxDefault()
@@ -126,6 +133,8 @@ class WebViewAppGui {
       return
     }
     this.IsMinimized := false
+    if (restoredFromNonNormal)
+      this.ClearWorkspaceHole()
     if (minMax == 1)
       this.ResetRestoredRobloxDefault()
     try this.BrowserControl.Move(0, 0, width, height)
@@ -442,6 +451,20 @@ class WebViewAppGui {
     this.QueueRobloxWorkspaceSync(30)
   }
 
+  HandleNativeMoveSize(wParam, lParam, msg, hwnd) {
+    if (!IsObject(this.Gui) || hwnd != this.Gui.Hwnd)
+      return
+    if (msg == 0x0231) {
+      this.IsInNativeMoveSize := true
+      try SetTimer(this.ResizeSyncHandler, 0)
+      return
+    }
+    if (msg == 0x0232) {
+      this.IsInNativeMoveSize := false
+      this.QueueRobloxWorkspaceSync(180)
+    }
+  }
+
   SyncRobloxWorkspace() {
     if (!IsObject(this.Gui) || !IsObject(this.Browser)) {
       this.ClearWorkspaceHole()
@@ -456,6 +479,8 @@ class WebViewAppGui {
       this.DetachRobloxWorkspace()
       return
     }
+    if (this.IsInNativeMoveSize)
+      return
     wasAttached := this.AttachedToRoblox
     wasAvailable := this.LastRobloxAvailable
     available := this.Roblox.IsAvailable()
@@ -936,6 +961,8 @@ class WebViewAppGui {
     this.Logger.Info("Application close requested by GUI window.")
     this.UnregisterClipboardHotkeys()
     try OnMessage(0x0006, this.ActivateHandler, 0)
+    try OnMessage(0x0231, this.NativeMoveSizeHandler, 0)
+    try OnMessage(0x0232, this.NativeMoveSizeHandler, 0)
     SetTimer(this.BridgeHandler, 0)
     SetTimer(this.AttachHandler, 0)
     SetTimer(this.ResizeSyncHandler, 0)
