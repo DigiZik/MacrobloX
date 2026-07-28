@@ -11,8 +11,6 @@ An AHKv2 task that can macro a specific game.
 3. Extract the zip, keeping `MacroRecorder.ahk`, the `Lib/` folder, and the `Gui/` folder together.
 4. Double-click `MacroRecorder.ahk`.
 
-MacrobloX uses a local HTML/CSS application shell hosted by Windows' embedded browser control. A clean WebView2 host can replace that thin shell later without changing recorder/playback internals; the current package does not vendor GPL WebView helper code from other macros.
-
 ## Usage
 
 Double-clicking `MacroRecorder.ahk` opens MacrobloX in a modern Roblox-focused control window. By default, macros are saved as `.txt` files in a `Macros` folder next to `MacroRecorder.ahk`, so the normal workflow is still just launching that one script.
