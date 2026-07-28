@@ -27,6 +27,7 @@ jobs:
           Copy-Item -LiteralPath "README.md" -Destination $packageDir
           Copy-Item -LiteralPath "LICENSE" -Destination $packageDir
           Copy-Item -LiteralPath "Lib" -Destination $packageDir -Recurse
+          Copy-Item -LiteralPath "Gui" -Destination $packageDir -Recurse
           Compress-Archive -Path (Join-Path $packageDir "*") -DestinationPath "dist\MacrobloX-v$version-source.zip" -Force
 
       - name: Create release

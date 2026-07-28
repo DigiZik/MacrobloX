@@ -3,18 +3,29 @@ class RobloxWindowService {
     this.Logger := logger
     this.WindowTitle := "ahk_exe RobloxPlayerBeta.exe"
     this.OverlayHwnd := 0
-    this.OriginalStyle := 0
-    this.OriginalExStyle := 0
-    this.OriginalBounds := ""
-    this.OriginalMinMax := 0
     this.LastRect := ""
+    this.LastOwnerHwnd := 0
   }
 
   FindWindow() {
     previousDetectHidden := A_DetectHiddenWindows
     try {
-      DetectHiddenWindows(true)
-      return WinExist(this.WindowTitle)
+      DetectHiddenWindows(false)
+      bestHwnd := 0
+      bestArea := 0
+      for hwnd in WinGetList(this.WindowTitle) {
+        if (!this.IsUsableRobloxWindow(hwnd))
+          continue
+        bounds := this.GetBounds(hwnd)
+        if (!IsObject(bounds))
+          continue
+        area := bounds.W * bounds.H
+        if (area > bestArea) {
+          bestHwnd := hwnd
+          bestArea := area
+        }
+      }
+      return bestHwnd
     } catch as err {
       this.Logger.Warn("Roblox lookup failed: " err.Message)
       return 0
@@ -24,7 +35,11 @@ class RobloxWindowService {
   }
 
   IsAvailable() {
-    return this.HasOverlayWindow() || this.FindWindow() != 0
+    if (this.HasOverlayWindow())
+      return true
+    if (this.OverlayHwnd)
+      this.ResetOverlayState()
+    return this.FindWindow() != 0
   }
 
   GetBounds(hwnd := 0) {
@@ -41,82 +56,262 @@ class RobloxWindowService {
     }
   }
 
-  OverlayInRect(ownerHwnd, x, y, width, height) {
-    hwnd := this.HasOverlayWindow() ? this.OverlayHwnd : this.FindWindow()
+  GetClientBounds(hwnd := 0) {
     if (!hwnd)
-      return false
-
+      hwnd := this.HasOverlayWindow() ? this.OverlayHwnd : this.FindWindow()
+    if (!hwnd)
+      return ""
     try {
-      if (this.OverlayHwnd != hwnd) {
-        this.Restore()
-        this.OverlayHwnd := hwnd
-        this.OriginalStyle := this.GetWindowLong(hwnd, -16)
-        this.OriginalExStyle := this.GetWindowLong(hwnd, -20)
-        this.OriginalMinMax := WinGetMinMax("ahk_id " hwnd)
-        this.OriginalBounds := this.GetBounds(hwnd)
-        if (this.OriginalMinMax != 0) {
-          WinRestore("ahk_id " hwnd)
-          Sleep(80)
-        }
-        this.ApplyOverlayStyle(hwnd)
+      clientRect := Buffer(16, 0)
+      if (!DllCall("GetClientRect", "Ptr", hwnd, "Ptr", clientRect, "Int"))
+        return ""
+      point := Buffer(8, 0)
+      if (!DllCall("ClientToScreen", "Ptr", hwnd, "Ptr", point, "Int"))
+        return ""
+      x := NumGet(point, 0, "Int")
+      y := NumGet(point, 4, "Int")
+      w := NumGet(clientRect, 8, "Int")
+      h := NumGet(clientRect, 12, "Int")
+      return { Hwnd: hwnd, X: x, Y: y, W: w, H: h }
+    } catch as err {
+      this.Logger.Warn("Roblox client bounds lookup failed: " err.Message)
+      return ""
+    }
+  }
+
+  EnsureRestoredWindowSize(width, height, hwnd := 0, x := "", y := "") {
+    if (!hwnd)
+      hwnd := this.HasOverlayWindow() ? this.OverlayHwnd : this.FindWindow()
+    if (!hwnd || !this.IsWindow(hwnd))
+      return ""
+
+    width := Round(Max(width, 320))
+    height := Round(Max(height, 240))
+    try {
+      if (WinGetMinMax("ahk_id " hwnd) != 0) {
+        WinRestore("ahk_id " hwnd)
+        Sleep(30)
         this.LastRect := ""
       }
 
-      this.MoveOverlay(ownerHwnd, x, y, width, height)
-      return true
+      bounds := this.GetBounds(hwnd)
+      if (!IsObject(bounds))
+        return ""
+      targetX := x == "" ? bounds.X : x
+      targetY := y == "" ? bounds.Y : y
+      target := this.ClampWindowRectToWorkArea(targetX, targetY, width, height)
+      nextRect := target.X "," target.Y "," target.W "," target.H
+      if (this.LastRect != nextRect || !this.WindowHasRect(hwnd, target.X, target.Y, target.W, target.H)) {
+        WinMove(target.X, target.Y, target.W, target.H, "ahk_id " hwnd)
+        this.LastRect := nextRect
+      }
+      return this.GetBounds(hwnd)
     } catch as err {
-      this.Logger.Warn("Roblox overlay failed: " err.Message)
+      this.Logger.Warn("Roblox restored window sizing failed: " err.Message)
+      return ""
+    }
+  }
+
+  EnsureRestoredClientRect(width, height, hwnd := 0, x := "", y := "") {
+    if (!hwnd)
+      hwnd := this.HasOverlayWindow() ? this.OverlayHwnd : this.FindWindow()
+    if (!hwnd || !this.IsWindow(hwnd))
+      return ""
+
+    width := Round(Max(width, 320))
+    height := Round(Max(height, 240))
+    try {
+      if (WinGetMinMax("ahk_id " hwnd) != 0) {
+        WinRestore("ahk_id " hwnd)
+        Sleep(30)
+        this.LastRect := ""
+      }
+
+      clientBounds := this.GetClientBounds(hwnd)
+      if (!IsObject(clientBounds))
+        return ""
+      targetX := x == "" ? clientBounds.X : x
+      targetY := y == "" ? clientBounds.Y : y
+      target := this.GetWindowTargetForClientRect(hwnd, targetX, targetY, width, height)
+      target := this.ClampWindowRectToWorkArea(target.X, target.Y, target.W, target.H)
+      nextRect := target.X "," target.Y "," target.W "," target.H
+      if (this.LastRect != nextRect || !this.WindowHasRect(hwnd, target.X, target.Y, target.W, target.H)) {
+        WinMove(target.X, target.Y, target.W, target.H, "ahk_id " hwnd)
+        this.LastRect := nextRect
+      }
+      return this.GetClientBounds(hwnd)
+    } catch as err {
+      this.Logger.Warn("Roblox restored client sizing failed: " err.Message)
+      return ""
+    }
+  }
+
+  OverlayInRect(ownerHwnd, x, y, width, height) {
+    if (!ownerHwnd || width < 320 || height < 240)
+      return false
+
+    hwnd := this.HasOverlayWindow() ? this.OverlayHwnd : this.FindWindow()
+    if (!hwnd) {
+      this.ResetOverlayState()
+      return false
+    }
+
+    try {
+      if (this.OverlayHwnd != hwnd)
+        this.BeginOverlay(hwnd)
+      return this.ApplyOverlayRect(ownerHwnd, { X: x, Y: y, W: width, H: height })
+    } catch as err {
+      this.Logger.Warn("Roblox positioning failed: " err.Message)
+      this.ResetOverlayState()
       return false
     }
   }
 
-  MoveOverlay(ownerHwnd, x, y, width, height) {
-    if (!this.HasOverlayWindow())
+  IsUsableRobloxWindow(hwnd) {
+    if (!this.IsWindow(hwnd))
       return false
+    if (!DllCall("IsWindowVisible", "Ptr", hwnd, "Int"))
+      return false
+    bounds := this.GetBounds(hwnd)
+    return IsObject(bounds) && bounds.W >= 320 && bounds.H >= 240
+  }
+
+  BeginOverlay(hwnd) {
+    if (!hwnd || !this.IsWindow(hwnd))
+      return false
+    this.OverlayHwnd := hwnd
+    this.LastRect := ""
+    this.LastOwnerHwnd := 0
+    return true
+  }
+
+  ApplyOverlayRect(ownerHwnd, rect) {
+    if (!IsObject(rect))
+      return false
+    return this.MoveOverlay(ownerHwnd, rect.X, rect.Y, rect.W, rect.H)
+  }
+
+  MoveOverlay(ownerHwnd, x, y, width, height) {
+    if (!this.HasOverlayWindow() || !this.IsWindow(ownerHwnd))
+      return false
+
     width := Max(width, 320)
     height := Max(height, 240)
-    nextRect := x "," y "," width "," height
     try {
       if (WinGetMinMax("ahk_id " this.OverlayHwnd) != 0) {
         WinRestore("ahk_id " this.OverlayHwnd)
         Sleep(30)
         this.LastRect := ""
       }
-      if (this.LastRect == nextRect && this.WindowHasRect(this.OverlayHwnd, x, y, width, height))
-        return true
-      this.SetOverlayOwner(ownerHwnd)
-      this.MoveTopLevel(this.OverlayHwnd, x, y, width, height)
-      this.LastRect := nextRect
-      return true
+      target := this.GetWindowTargetForClientRect(this.OverlayHwnd, x, y, width, height)
+      nextRect := target.X "," target.Y "," target.W "," target.H
+      if (this.LastRect != nextRect || this.LastOwnerHwnd != ownerHwnd) {
+        WinMove(target.X, target.Y, target.W, target.H, "ahk_id " this.OverlayHwnd)
+        this.LastRect := nextRect
+        this.LastOwnerHwnd := ownerHwnd
+      }
+      return this.PlaceBehindOwner(ownerHwnd)
     } catch as err {
-      this.Logger.Warn("Roblox overlay resize failed: " err.Message)
+      this.Logger.Warn("Roblox workspace positioning failed: " err.Message)
       return false
     }
   }
 
-  Restore() {
-    if (!this.HasOverlayWindow()) {
-      this.ResetOverlayState()
-      return
+  GetWindowTargetForClientRect(hwnd, clientX, clientY, clientW, clientH) {
+    metrics := this.GetWindowClientMetrics(hwnd)
+    if (!IsObject(metrics))
+      return { X: clientX, Y: clientY, W: clientW, H: clientH }
+    return {
+      X: clientX - metrics.Left,
+      Y: clientY - metrics.Top,
+      W: clientW + metrics.Left + metrics.Right,
+      H: clientH + metrics.Top + metrics.Bottom
     }
-    hwnd := this.OverlayHwnd
+  }
+
+  GetWindowClientMetrics(hwnd) {
     try {
-      this.ClearOverlayOwner(hwnd)
-      if (this.OriginalStyle)
-        this.SetWindowLong(hwnd, -16, this.OriginalStyle)
-      if (this.OriginalExStyle)
-        this.SetWindowLong(hwnd, -20, this.OriginalExStyle)
-      this.RefreshFrame(hwnd)
-      if (IsObject(this.OriginalBounds))
-        WinMove(this.OriginalBounds.X, this.OriginalBounds.Y, this.OriginalBounds.W, this.OriginalBounds.H, "ahk_id " hwnd)
-      WinShow("ahk_id " hwnd)
-      if (this.OriginalMinMax == 1)
-        WinMaximize("ahk_id " hwnd)
-      else if (this.OriginalMinMax == -1)
-        WinMinimize("ahk_id " hwnd)
+      windowRect := Buffer(16, 0)
+      if (!DllCall("GetWindowRect", "Ptr", hwnd, "Ptr", windowRect, "Int"))
+        return ""
+
+      clientRect := Buffer(16, 0)
+      if (!DllCall("GetClientRect", "Ptr", hwnd, "Ptr", clientRect, "Int"))
+        return ""
+
+      point := Buffer(8, 0)
+      if (!DllCall("ClientToScreen", "Ptr", hwnd, "Ptr", point, "Int"))
+        return ""
+
+      windowX := NumGet(windowRect, 0, "Int")
+      windowY := NumGet(windowRect, 4, "Int")
+      windowW := NumGet(windowRect, 8, "Int") - windowX
+      windowH := NumGet(windowRect, 12, "Int") - windowY
+      clientW := NumGet(clientRect, 8, "Int")
+      clientH := NumGet(clientRect, 12, "Int")
+      clientScreenX := NumGet(point, 0, "Int")
+      clientScreenY := NumGet(point, 4, "Int")
+
+      left := Max(0, clientScreenX - windowX)
+      top := Max(0, clientScreenY - windowY)
+      right := Max(0, windowW - clientW - left)
+      bottom := Max(0, windowH - clientH - top)
+      return { Left: left, Top: top, Right: right, Bottom: bottom }
     } catch as err {
-      this.Logger.Warn("Roblox restore failed: " err.Message)
+      this.Logger.Warn("Roblox client metrics failed: " err.Message)
+      return ""
     }
+  }
+
+  ClampWindowRectToWorkArea(x, y, width, height) {
+    workArea := this.GetWorkAreaForRect(x, y, width, height)
+    if (!IsObject(workArea))
+      return { X: x, Y: y, W: width, H: height }
+
+    maxX := workArea.Right - width
+    maxY := workArea.Bottom - height
+    targetX := width >= workArea.Right - workArea.Left ? workArea.Left : Min(Max(x, workArea.Left), maxX)
+    targetY := height >= workArea.Bottom - workArea.Top ? workArea.Top : Min(Max(y, workArea.Top), maxY)
+    return { X: targetX, Y: targetY, W: width, H: height }
+  }
+
+  GetWorkAreaForRect(x, y, width, height) {
+    try {
+      centerX := x + (width // 2)
+      centerY := y + (height // 2)
+      monitorCount := MonitorGetCount()
+      bestArea := ""
+      bestDistance := ""
+      Loop monitorCount {
+        MonitorGetWorkArea(A_Index, &left, &top, &right, &bottom)
+        if (centerX >= left && centerX < right && centerY >= top && centerY < bottom)
+          return { Left: left, Top: top, Right: right, Bottom: bottom }
+
+        nearestX := Min(Max(centerX, left), right)
+        nearestY := Min(Max(centerY, top), bottom)
+        distance := ((centerX - nearestX) * (centerX - nearestX)) + ((centerY - nearestY) * (centerY - nearestY))
+        if (bestDistance == "" || distance < bestDistance) {
+          bestDistance := distance
+          bestArea := { Left: left, Top: top, Right: right, Bottom: bottom }
+        }
+      }
+      return bestArea
+    } catch as err {
+      this.Logger.Warn("Monitor work area lookup failed: " err.Message)
+      return ""
+    }
+  }
+
+  PlaceBehindOwner(ownerHwnd) {
+    static SWP_NOMOVE := 0x0002
+    static SWP_NOSIZE := 0x0001
+    static SWP_NOACTIVATE := 0x0010
+    static SWP_SHOWWINDOW := 0x0040
+    DllCall("SetWindowPos", "Ptr", this.OverlayHwnd, "Ptr", ownerHwnd, "Int", 0, "Int", 0, "Int", 0, "Int", 0, "UInt", SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW)
+    return true
+  }
+
+  Restore() {
     this.ResetOverlayState()
   }
 
@@ -133,55 +328,6 @@ class RobloxWindowService {
     }
   }
 
-  ApplyOverlayStyle(hwnd) {
-    static WS_CHILD := 0x40000000
-    static WS_POPUP := 0x80000000
-    static WS_CAPTION := 0x00C00000
-    static WS_THICKFRAME := 0x00040000
-    static WS_MINIMIZEBOX := 0x00020000
-    static WS_MAXIMIZEBOX := 0x00010000
-    static WS_SYSMENU := 0x00080000
-    static WS_MAXIMIZE := 0x01000000
-    static WS_MINIMIZE := 0x20000000
-    static WS_VISIBLE := 0x10000000
-    static WS_EX_APPWINDOW := 0x00040000
-    static WS_EX_TOOLWINDOW := 0x00000080
-    style := this.OriginalStyle
-    style := (style | WS_POPUP | WS_VISIBLE) & ~(WS_CHILD | WS_CAPTION | WS_THICKFRAME | WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_SYSMENU | WS_MAXIMIZE | WS_MINIMIZE)
-    exStyle := (this.OriginalExStyle | WS_EX_TOOLWINDOW) & ~WS_EX_APPWINDOW
-    this.SetWindowLong(hwnd, -16, style)
-    this.SetWindowLong(hwnd, -20, exStyle)
-    this.RefreshFrame(hwnd)
-    WinShow("ahk_id " hwnd)
-  }
-
-  SetOverlayOwner(ownerHwnd) {
-    if (!ownerHwnd)
-      return
-    fn := A_PtrSize == 8 ? "SetWindowLongPtr" : "SetWindowLong"
-    DllCall(fn, "Ptr", this.OverlayHwnd, "Int", -8, "Ptr", ownerHwnd, "Ptr")
-  }
-
-  ClearOverlayOwner(hwnd) {
-    fn := A_PtrSize == 8 ? "SetWindowLongPtr" : "SetWindowLong"
-    DllCall(fn, "Ptr", hwnd, "Int", -8, "Ptr", 0, "Ptr")
-  }
-
-  RefreshFrame(hwnd) {
-    static SWP_NOMOVE := 0x0002
-    static SWP_NOSIZE := 0x0001
-    static SWP_NOZORDER := 0x0004
-    static SWP_NOACTIVATE := 0x0010
-    static SWP_FRAMECHANGED := 0x0020
-    DllCall("SetWindowPos", "Ptr", hwnd, "Ptr", 0, "Int", 0, "Int", 0, "Int", 0, "Int", 0, "UInt", SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED)
-  }
-
-  MoveTopLevel(hwnd, x, y, width, height) {
-    static HWND_TOP := 0
-    static SWP_SHOWWINDOW := 0x0040
-    DllCall("SetWindowPos", "Ptr", hwnd, "Ptr", HWND_TOP, "Int", x, "Int", y, "Int", width, "Int", height, "UInt", SWP_SHOWWINDOW)
-  }
-
   WindowHasRect(hwnd, x, y, width, height) {
     try {
       WinGetPos(&currentX, &currentY, &currentW, &currentH, "ahk_id " hwnd)
@@ -192,25 +338,16 @@ class RobloxWindowService {
   }
 
   HasOverlayWindow() {
-    return this.OverlayHwnd && DllCall("IsWindow", "Ptr", this.OverlayHwnd, "Int")
+    return this.OverlayHwnd && this.IsWindow(this.OverlayHwnd)
+  }
+
+  IsWindow(hwnd) {
+    return hwnd && DllCall("IsWindow", "Ptr", hwnd, "Int")
   }
 
   ResetOverlayState() {
     this.OverlayHwnd := 0
-    this.OriginalStyle := 0
-    this.OriginalExStyle := 0
-    this.OriginalBounds := ""
-    this.OriginalMinMax := 0
     this.LastRect := ""
-  }
-
-  GetWindowLong(hwnd, index) {
-    fn := A_PtrSize == 8 ? "GetWindowLongPtr" : "GetWindowLong"
-    return DllCall(fn, "Ptr", hwnd, "Int", index, "Ptr")
-  }
-
-  SetWindowLong(hwnd, index, value) {
-    fn := A_PtrSize == 8 ? "SetWindowLongPtr" : "SetWindowLong"
-    return DllCall(fn, "Ptr", hwnd, "Int", index, "Ptr", value, "Ptr")
+    this.LastOwnerHwnd := 0
   }
 }

@@ -163,6 +163,15 @@ class UpdateService {
       "  Copy-Item -LiteralPath (Join-Path $sourceLib '*') -Destination $targetLib -Recurse -Force",
       "}",
       "",
+      "$sourceGui = Join-Path $sourceDir 'Gui'",
+      "$targetGui = Join-Path $AppDir 'Gui'",
+      "if (Test-Path -LiteralPath $sourceGui) {",
+      "  if (!(Test-Path -LiteralPath $targetGui)) {",
+      "    New-Item -ItemType Directory -Path $targetGui -Force | Out-Null",
+      "  }",
+      "  Copy-Item -LiteralPath (Join-Path $sourceGui '*') -Destination $targetGui -Recurse -Force",
+      "}",
+      "",
       "Start-Process -FilePath $AhkPath -ArgumentList @($RestartPath) -WorkingDirectory $AppDir"
     ]
     script := ""

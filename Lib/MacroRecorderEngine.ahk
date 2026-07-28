@@ -6,10 +6,13 @@ class MacroRecorderEngine {
     this.Logger := logger
     this.LogArr := []
     this.OldWindowId := ""
+    this.OldWindowTitle := ""
     this.RelativeX := 0
     this.RelativeY := 0
     this.LastLogTime := 0
+    this.ActiveKeys := Map()
     this.LogKeyHandler := ObjBindMethod(this, "LogKey")
+    this.LogWheelHandler := ObjBindMethod(this, "LogWheel")
     this.LogWindowHandler := ObjBindMethod(this, "LogWindow")
   }
 
@@ -19,14 +22,15 @@ class MacroRecorderEngine {
     this.Settings.Normalize()
     this.LogArr := []
     this.OldWindowId := ""
+    this.OldWindowTitle := ""
     this.LastLogTime := 0
-    this.Log()
-    this.State.Recording := true
-    this.SetRecordingHotkeys(true)
+    this.ActiveKeys := Map()
     CoordMode("Mouse", "Screen")
     MouseGetPos(&x, &y)
     this.RelativeX := x
     this.RelativeY := y
+    this.State.Recording := true
+    this.SetRecordingHotkeys(true)
     return true
   }
 
@@ -36,6 +40,7 @@ class MacroRecorderEngine {
         this.MacroFiles.WriteCurrent(this.BuildRecordedMacroScript())
       this.State.Recording := false
       this.LogArr := []
+      this.ActiveKeys := Map()
       this.SetRecordingHotkeys(false)
     }
     Suspend(false)
@@ -48,6 +53,7 @@ class MacroRecorderEngine {
     this.State.Recording := false
     this.State.Playing := false
     this.LogArr := []
+    this.ActiveKeys := Map()
     this.MacroFiles.WriteCurrent(this.MacroFiles.EmptyMacroTemplate())
     Suspend(false)
     Pause(false)
@@ -68,11 +74,11 @@ class MacroRecorderEngine {
       script .= "CoordMode(`"Mouse`", `"Screen`")`n`n"
     }
 
-    for _, value in this.LogArr {
-      line := Trim(value)
+    for _, entry in this.LogArr {
+      line := Trim(entry.Text)
       if (line == "" || SubStr(line, 1, 1) == ";")
         continue
-      script .= RegExReplace(value, "\s+;(?:screen|window|relative)$") "`n"
+      script .= entry.Text "`n"
     }
     script .= "`nExitApp()`n"
     return RegExReplace(script, "\R", "`n")
@@ -90,6 +96,8 @@ class MacroRecorderEngine {
       if (!(key ~= "^(?i:|Control|Alt|Shift)$"))
         Hotkey("~*" sc, this.LogKeyHandler, mode)
     }
+    Hotkey("~*WheelUp", this.LogWheelHandler, mode)
+    Hotkey("~*WheelDown", this.LogWheelHandler, mode)
 
     if (enabled) {
       SetTimer(this.LogWindowHandler)
@@ -111,70 +119,106 @@ class MacroRecorderEngine {
     else {
       if (key = "NumpadLeft" || key = "NumpadRight") && !GetKeyState(key, "P")
         return
-      key := StrLen(key) > 1 ? "{" key "}" : key ~= "\w" ? key : "{" vksc "}"
-      this.Log(key, true)
+      this.LogStandardKey(key, vksc)
     }
+  }
+
+  LogStandardKey(key, vksc) {
+    if (this.ActiveKeys.Has(vksc))
+      return
+    this.ActiveKeys[vksc] := true
+    sendText := StrLen(key) > 1 ? "{" key "}" : key ~= "\w" ? key : "{" vksc "}"
+    downName := StrLen(key) > 1 ? key : key ~= "\w" ? key : vksc
+    downIndex := this.Log("{" downName " Down}", true, true, "key-down")
+    t1 := A_TickCount
+    Critical("Off")
+    KeyWait(vksc)
+    Critical()
+    heldMs := A_TickCount - t1
+    try this.ActiveKeys.Delete(vksc)
+    if (heldMs <= 180 && downIndex > 0 && downIndex <= this.LogArr.Length) {
+      this.LogArr[downIndex].Kind := "send"
+      this.LogArr[downIndex].Text := "Send `"{Blind}" sendText "`""
+      return
+    }
+    this.Log("{" downName " Up}", true, true, "key-up")
   }
 
   LogControlKey(key) {
     keyName := InStr(key, "Win") ? key : SubStr(key, 2)
-    this.Log("{" keyName " Down}", true)
+    this.Log("{" keyName " Down}", true, true, "key-down")
     Critical("Off")
     KeyWait(key)
     Critical()
-    this.Log("{" keyName " Up}", true)
+    this.Log("{" keyName " Up}", true, true, "key-up")
   }
 
   LogMouseKey(key) {
     button := SubStr(key, 1, 1)
-
-    CoordMode("Mouse", "Screen")
-    MouseGetPos(&x, &y, &id)
-    this.Log((this.Settings.MouseMode == "window" || this.Settings.MouseMode == "relative" ? ";" : "") "MouseClick(`"" button "`", " x ", " y ",,, `"D`") `;screen")
-
-    CoordMode("Mouse", "Window")
-    MouseGetPos(&windowX, &windowY, &id)
-    this.Log((this.Settings.MouseMode != "window" ? ";" : "") "MouseClick(`"" button "`", " windowX ", " windowY ",,, `"D`") `;window")
-
-    CoordMode("Mouse", "Screen")
-    MouseGetPos(&tempRelativeX, &tempRelativeY, &id)
-    this.Log((this.Settings.MouseMode != "relative" ? ";" : "") "MouseClick(`"" button "`", " (tempRelativeX - this.RelativeX) ", " (tempRelativeY - this.RelativeY) ",,, `"D`", `"R`") `;relative")
-    this.RelativeX := tempRelativeX
-    this.RelativeY := tempRelativeY
-
-    CoordMode("Mouse", "Screen")
-    MouseGetPos(&x1, &y1)
-    t1 := A_TickCount
+    downPosition := this.CaptureMousePosition()
+    relativeStartX := this.RelativeX
+    relativeStartY := this.RelativeY
+    downIndex := this.Log(this.BuildMouseClickText(button, downPosition, "D", relativeStartX, relativeStartY), false, true, "mouse-down")
+    pressStarted := A_TickCount
     Critical("Off")
     KeyWait(key)
     Critical()
-    t2 := A_TickCount
-    if (t2 - t1 <= 200)
-      x2 := x1, y2 := y1
-    else
-      MouseGetPos(&x2, &y2)
+    upPosition := this.CaptureMousePosition()
+    heldMs := A_TickCount - pressStarted
+    isQuickClick := (heldMs <= 180) && (Abs(upPosition.ScreenX - downPosition.ScreenX) + Abs(upPosition.ScreenY - downPosition.ScreenY) < 5)
+    if (isQuickClick) {
+      this.LogArr[downIndex].Kind := "mouse-click"
+      this.LogArr[downIndex].Text := this.BuildMouseClickText(button, downPosition, "", relativeStartX, relativeStartY, false)
+      this.RelativeX := upPosition.ScreenX
+      this.RelativeY := upPosition.ScreenY
+      return
+    }
+    this.Log(this.BuildMouseClickText(button, upPosition, "U"), false, true, "mouse-up")
+  }
 
-    i := this.LogArr.Length - 2, row := this.LogArr[i]
-    if (InStr(row, ",,, `"D`")") && Abs(x2 - x1) + Abs(y2 - y1) < 5)
-      this.LogArr[i] := SubStr(row, 1, -16) ") `;screen", this.Log()
-    else
-      this.Log((this.Settings.MouseMode == "window" || this.Settings.MouseMode == "relative" ? ";" : "") "MouseClick(`"" button "`", " (x + x2 - x1) ", " (y + y2 - y1) ",,, `"U`") `;screen")
+  LogWheel(*) {
+    Critical()
+    button := InStr(A_ThisHotkey, "WheelDown") ? "WheelDown" : "WheelUp"
+    this.Log(this.BuildMouseClickText(button, this.CaptureMousePosition()), false, true, "mouse-wheel")
+  }
 
-    i := this.LogArr.Length - 1, row := this.LogArr[i]
-    if (InStr(row, ",,, `"D`")") && Abs(x2 - x1) + Abs(y2 - y1) < 5)
-      this.LogArr[i] := SubStr(row, 1, -16) ") `;window", this.Log()
-    else
-      this.Log((this.Settings.MouseMode != "window" ? ";" : "") "MouseClick(`"" button "`", " (windowX + x2 - x1) ", " (windowY + y2 - y1) ",,, `"U`") `;window")
+  CaptureMousePosition() {
+    CoordMode("Mouse", "Screen")
+    MouseGetPos(&screenX, &screenY)
+    CoordMode("Mouse", "Window")
+    MouseGetPos(&windowX, &windowY)
+    CoordMode("Mouse", "Screen")
+    return { ScreenX: screenX, ScreenY: screenY, WindowX: windowX, WindowY: windowY }
+  }
 
-    i := this.LogArr.Length, row := this.LogArr[i]
-    if (InStr(row, ",,, `"D`", `"R`")") && Abs(x2 - x1) + Abs(y2 - y1) < 5)
-      this.LogArr[i] := SubStr(row, 1, -23) ",,,, `"R`") `;relative", this.Log()
+  BuildMouseClickText(button, position, mode := "", relativeStartX := "", relativeStartY := "", updateRelative := true) {
+    if (this.Settings.MouseMode == "window") {
+      x := position.WindowX
+      y := position.WindowY
+      relative := false
+    } else if (this.Settings.MouseMode == "relative") {
+      baseX := relativeStartX == "" ? this.RelativeX : relativeStartX
+      baseY := relativeStartY == "" ? this.RelativeY : relativeStartY
+      x := position.ScreenX - baseX
+      y := position.ScreenY - baseY
+      relative := true
+    } else {
+      x := position.ScreenX
+      y := position.ScreenY
+      relative := false
+    }
+    if (updateRelative) {
+      this.RelativeX := position.ScreenX
+      this.RelativeY := position.ScreenY
+    }
+    if (relative)
+      suffix := mode == "" ? ",,,, `"R`"" : ",,, `"" mode "`", `"R`""
     else
-      this.Log((this.Settings.MouseMode != "relative" ? ";" : "") "MouseClick(`"" button "`", " (x2 - x1) ", " (y2 - y1) ",,, `"U`", `"R`") `;relative")
+      suffix := mode == "" ? "" : ",,, `"" mode "`""
+    return "MouseClick(`"" button "`", " x ", " y suffix ")"
   }
 
   LogWindow() {
-    static oldTitle := ""
     id := WinExist("A")
     if (!id)
       return
@@ -182,33 +226,51 @@ class MacroRecorderEngine {
     className := WinGetClass(id)
     if (title = "" && className = "")
       return
-    if (id = this.OldWindowId && title = oldTitle)
+    if (id = this.OldWindowId && title = this.OldWindowTitle)
       return
     this.OldWindowId := id
-    oldTitle := title
+    this.OldWindowTitle := title
     title := SubStr(title, 1, 50)
     title .= className ? " ahk_class " className : ""
     title := RegExReplace(Trim(title), "[``%;]", "``$0")
     comment := this.Settings.MouseMode != "window" ? ";" : ""
     script := comment "tt := `"" title "`"`n" comment "WinWait(tt)`n" comment "if (!WinActive(tt))`n" comment "  WinActivate(tt)"
     i := this.LogArr.Length
-    row := i = 0 ? "" : this.LogArr[i]
+    row := i = 0 ? "" : this.LogArr[i].Text
     if (InStr(row, "tt := ") = 1)
-      this.LogArr[i] := script, this.Log()
+      this.LogArr[i].Text := script
     else
-      this.Log(script)
+      this.Log(script, false, false, "window")
   }
 
-  Log(text := "", keyboard := false) {
-    t := A_TickCount
-    delay := this.LastLogTime ? t - this.LastLogTime : 0
-    this.LastLogTime := t
-    if (text = "")
+  LogSleep(ms) {
+    if (ms <= 0)
       return
-    i := this.LogArr.Length
-    row := i = 0 ? "" : this.LogArr[i]
+    this.LogArr.Push({ Kind: "sleep", Text: "Sleep(" Round(ms) ")" })
+    this.LastLogTime := A_TickCount
+  }
+
+  Log(text := "", keyboard := false, includeDelay := true, kind := "action") {
+    t := A_TickCount
+    if (text = "") {
+      if (this.LastLogTime)
+        this.LastLogTime := t
+      return 0
+    }
+    trimmed := Trim(text)
+    if (trimmed == "" || SubStr(trimmed, 1, 1) == ";") {
+      this.LogArr.Push({ Kind: kind, Text: keyboard ? "Send `"{Blind}" text "`"" : text })
+      return this.LogArr.Length
+    }
+    if (kind == "window") {
+      this.LogArr.Push({ Kind: kind, Text: text })
+      return this.LogArr.Length
+    }
+    delay := this.LastLogTime && includeDelay ? t - this.LastLogTime : 0
+    this.LastLogTime := t
     if (delay > 200)
-      this.LogArr.Push("Sleep(" delay ")")
-    this.LogArr.Push(keyboard ? "Send `"{Blind}" text "`"" : text)
+      this.LogArr.Push({ Kind: "sleep", Text: "Sleep(" delay ")" })
+    this.LogArr.Push({ Kind: kind, Text: keyboard ? "Send `"{Blind}" text "`"" : text })
+    return this.LogArr.Length
   }
 }

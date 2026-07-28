@@ -49,7 +49,7 @@ class AppGui {
     this.StatusText.SetFont("s10 bold")
 
     this.RecordButton := this.Gui.Add("Button", "xm y+14 w188 h38", "Record")
-    this.RecordButton.OnEvent("Click", (*) => this.Controller.RecordKeyAction())
+    this.RecordButton.OnEvent("Click", (*) => this.Controller.RecordButtonAction())
     this.PlayButton := this.Gui.Add("Button", "xm y+8 w90 h34", "Play")
     this.PlayButton.OnEvent("Click", (*) => this.Controller.PlayKeyAction())
     this.LoopButton := this.Gui.Add("Button", "x+8 yp w90 h34", "Loop")
@@ -61,8 +61,8 @@ class AppGui {
 
     this.SettingsTitle := this.Gui.Add("Text", "xm y+10 w188 h22", "Session")
     this.SettingsTitle.SetFont("s10 bold")
-    this.ThemeChoice := this.Gui.Add("DropDownList", "xm y+4 w188", ["dark", "light"])
-    this.ThemeChoice.Choose(this.Settings.AppTheme == "dark" ? 1 : 2)
+    this.ThemeChoice := this.Gui.Add("DropDownList", "xm y+4 w188", ["light", "dark"])
+    this.ThemeChoice.Choose(this.Settings.AppTheme == "dark" ? 2 : 1)
     this.ThemeChoice.OnEvent("Change", (*) => this.QueueSaveSettings())
 
     this.MouseModeChoice := this.Gui.Add("DropDownList", "xm y+8 w188", ["screen", "window", "relative"])
