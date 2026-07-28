@@ -11,6 +11,7 @@
     "MouseClick",
     "MouseDown",
     "MouseUp",
+    "MouseWheel",
     "KeyDown",
     "KeyUp"
   ];
@@ -225,6 +226,7 @@
     if (eventName === "Send") return { event: "Send", key: "{Enter}", x: "", y: "" };
     if (eventName === "KeyDown") return { event: "KeyDown", key: "Shift", x: "", y: "" };
     if (eventName === "KeyUp") return { event: "KeyUp", key: "Shift", x: "", y: "" };
+    if (eventName === "MouseWheel") return { event: "MouseWheel", key: "Up", x: "0", y: "0" };
     return { event: eventName, key: "L", x: "0", y: "0" };
   }
 
@@ -244,6 +246,10 @@
     }
     if ((eventName === "Send" || eventName === "KeyDown" || eventName === "KeyUp") && key === "")
       key = row.x || "{Enter}";
+    if (eventName === "MouseWheel") {
+      key = String(key).toLowerCase() === "down" ? "Down" : "Up";
+      return { event: eventName, key: key, x: row.x || "0", y: row.y || "0" };
+    }
     if (eventName === "Sleep")
       return { event: eventName, key: "", x: row.x || "500", y: "" };
     if (eventName === "Send" || eventName === "KeyDown" || eventName === "KeyUp")
@@ -252,7 +258,7 @@
   }
 
   function isMouseEvent(eventName) {
-    return eventName === "MouseClick" || eventName === "MouseDown" || eventName === "MouseUp";
+    return eventName === "MouseClick" || eventName === "MouseDown" || eventName === "MouseUp" || eventName === "MouseWheel";
   }
 
   function isKeyEvent(eventName) {
@@ -283,7 +289,7 @@
       if (field === "y") return "Locked for key hold events.";
     }
     if (isMouseEvent(eventName)) {
-      if (field === "key") return "Mouse button: L, R, or M.";
+      if (field === "key") return eventName === "MouseWheel" ? "Wheel direction: Up or Down." : "Mouse button: L, R, or M.";
       if (field === "x") return "Mouse X coordinate.";
       if (field === "y") return "Mouse Y coordinate.";
     }

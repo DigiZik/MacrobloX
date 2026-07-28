@@ -1,5 +1,5 @@
 class MacroController {
-  __New(settings, state, recorder, playback, guiApp, macroFiles, notifier, logger, updater, discord := "") {
+  __New(settings, state, recorder, playback, guiApp, macroFiles, notifier, logger, updater, roblox, discord := "") {
     this.Settings := settings
     this.State := state
     this.Recorder := recorder
@@ -9,7 +9,10 @@ class MacroController {
     this.Notifier := notifier
     this.Logger := logger
     this.Updater := updater
+    this.Roblox := roblox
     this.Discord := discord
+    this.LastExternalWindow := 0
+    this.TrackExternalWindowHandler := ObjBindMethod(this, "TrackExternalWindow")
   }
 
   RegisterHotkeys() {
@@ -18,6 +21,7 @@ class MacroController {
     Hotkey(this.Settings.EditKey, (*) => this.EditKeyAction())
     Hotkey(this.Settings.LoopKey, (*) => this.LoopKeyAction())
     Hotkey(this.Settings.ToggleKey, (*) => this.ToggleScript())
+    SetTimer(this.TrackExternalWindowHandler, 150)
   }
 
   ScheduleStartupUpdateCheck() {
@@ -59,7 +63,11 @@ class MacroController {
     }
   }
 
-  RecordKeyAction() {
+  RecordButtonAction() {
+    return this.RecordKeyAction(true)
+  }
+
+  RecordKeyAction(focusTarget := false) {
     #SuspendExempt
     if (this.State.Recording) {
       this.StopRecording()
@@ -68,12 +76,55 @@ class MacroController {
     this.StopLoop(false)
     if (this.MacroFiles.IsDefaultMacroFile() && !this.CreateMacroForRecording())
       return
-    if (this.Recorder.Start()) {
+    try {
+      if (focusTarget)
+        this.FocusRecordingTarget()
+      if (!this.Recorder.Start()) {
+        if (focusTarget)
+          try this.Gui.RestoreAfterStandaloneRecording()
+        return
+      }
       this.Notifier.Show("Recording")
-      try this.Gui.MinimizeForStandaloneRecording()
+      if (!focusTarget)
+        try this.Gui.MinimizeForStandaloneRecording()
       this.Gui.UpdateState()
       this.NotifyDiscord("Recording started", "Recording to " this.Settings.GetFileNameFromPath(this.Settings.CurrentMacroFile) ".", 16753920, true)
+    } catch as err {
+      if (focusTarget)
+        try this.Gui.RestoreAfterStandaloneRecording()
+      this.Logger.ShowError("Recording setup failed", "Could not focus the recording target.", err)
+      this.NotifyDiscordError("Recording setup failed", err)
+      this.Gui.UpdateState()
     }
+  }
+
+  TrackExternalWindow(*) {
+    try {
+      hwnd := WinExist("A")
+      recorderHwnd := IsObject(this.Gui.Gui) ? this.Gui.Gui.Hwnd : 0
+      if (!hwnd || hwnd == recorderHwnd || !DllCall("IsWindowVisible", "Ptr", hwnd, "Int"))
+        return
+      if (WinGetMinMax("ahk_id " hwnd) == -1)
+        return
+      this.LastExternalWindow := hwnd
+    }
+  }
+
+  FocusRecordingTarget() {
+    this.TrackExternalWindow()
+    if (this.Roblox.IsAvailable()) {
+      if (this.Roblox.FocusRoblox()) {
+        Sleep(75)
+        return true
+      }
+    }
+    this.Gui.MinimizeForStandaloneRecording()
+    if (this.LastExternalWindow && WinExist("ahk_id " this.LastExternalWindow)) {
+      WinActivate("ahk_id " this.LastExternalWindow)
+      Sleep(75)
+      return true
+    }
+    return false
   }
 
   CreateMacroForRecording() {

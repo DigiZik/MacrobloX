@@ -44,7 +44,7 @@ The Reset button safely stops recording/playback/looping, releases held modifier
 
 Closing the main window exits the recorder and stops active recording, playback, and loop processes. Minimizing the window leaves the recorder running.
 
-When Roblox is not detected, starting a recording, playback, or loop playback minimizes MacrobloX so standalone desktop automation has a clear workspace. Stopping recording, finishing playback, or stopping loop playback restores and activates the app. When Roblox is detected, Roblox remains an independent window positioned behind the dashboard workspace, while MacrobloX clips the hosted browser around a native transparent workspace gap so Roblox shows through without changing the app's native titlebar. In restore-down mode, MacrobloX treats the restored Roblox client area as the workspace size source: entering restored mode first normalizes the independent Roblox play area to 800x600 at the current dashboard workspace position, fixes the dashboard workspace element to that client size so Roblox fills the workspace without showing its own titlebar, follows later Roblox resizes, and lets dragging the MacrobloX titlebar move the workspace while Roblox follows after a short debounce. MacrobloX does not embed, own, or restyle the Roblox window, which avoids extra blank Roblox game-client thumbnails in the Windows taskbar.
+When Roblox is not detected, starting a recording, playback, or loop playback minimizes MacrobloX so standalone desktop automation has a clear workspace. Stopping recording, finishing playback, or stopping loop playback restores and activates the app. Clicking the Record button hands focus to Roblox before input capture begins; without Roblox, it restores the last non-MacrobloX foreground window. When Roblox is detected, Roblox remains an independent window positioned behind the dashboard workspace, while MacrobloX clips the hosted browser around a native transparent workspace gap so Roblox shows through without changing the app's native titlebar. In restore-down mode, MacrobloX treats the restored Roblox client area as the workspace size source: entering restored mode first normalizes the independent Roblox play area to 800x600 at the current dashboard workspace position, fixes the dashboard workspace element to that client size so Roblox fills the workspace without showing its own titlebar, follows later Roblox resizes, and lets dragging the MacrobloX titlebar move the workspace while Roblox follows after a short debounce. MacrobloX does not embed, own, or restyle the Roblox window, which avoids extra blank Roblox game-client thumbnails in the Windows taskbar.
 
 ### Hotkeys
 
@@ -81,14 +81,14 @@ Recorded timing gaps are saved as `Sleep(...)` lines automatically, starting fro
 
 The Dashboard editor shows recognized macro events as compact rows instead of exposing every AutoHotkey setup line. Each visible row has four columns:
 
-- `Event` - the macro action type, such as `Send`, `Sleep`, `MouseClick`, `MouseDown`, `MouseUp`, `KeyDown`, or `KeyUp`
-- `Key` - the keyboard key/text for keyboard events or `L`, `R`, or `M` for mouse events
+- `Event` - the macro action type, such as `Send`, `Sleep`, `MouseClick`, `MouseDown`, `MouseUp`, `MouseWheel`, `KeyDown`, or `KeyUp`
+- `Key` - the keyboard key/text; `L`, `R`, or `M` for mouse buttons; or `Up`/`Down` for a mouse-wheel event
 - `X` - the delay for `Sleep` or the mouse X coordinate for mouse events
 - `Y` - the mouse Y coordinate when the event needs one
 
 Fields that do not apply to the selected event are visibly locked to reduce accidental edits. Hover over `Key`, `X`, or `Y` cells to see what the selected event expects, such as Sleep duration in milliseconds in `X`. Unsupported or custom AutoHotkey lines are hidden to save space, but they are preserved when the macro is saved. Use `Open External` from the toolbar when you need to edit the raw file.
 
-Right-click editor rows to move or delete the selection. The browser's normal right-click menu is disabled inside the app shell. Use Ctrl-click or Shift-click to select multiple rows for multi-delete or multi-move. Hold-style actions are represented as explicit down/up rows, for example `MouseDown` with key `L` followed by `MouseUp` with key `L`, or `KeyDown` with key `W` followed by `KeyUp` with key `W`. Quick stationary clicks are compacted to `MouseClick`; held mouse presses remain as down/up actions.
+Right-click editor rows to move or delete the selection. The browser's normal right-click menu is disabled inside the app shell. Use Ctrl-click or Shift-click to select multiple rows for multi-delete or multi-move. Hold-style actions are represented as explicit down/up rows, for example `MouseDown` with key `L` followed by `MouseUp` with key `L`, or `KeyDown` with key `W` followed by `KeyUp` with key `W`. Quick stationary clicks (up to 180 ms with under 5 px movement) are compacted to `MouseClick`; held mouse presses and drags remain as down/up actions. Each wheel input is recorded as its own `MouseWheel` row, preserving the input's direction and order.
 
 ### Customization
 

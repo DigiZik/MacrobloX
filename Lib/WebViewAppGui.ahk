@@ -202,7 +202,7 @@ class WebViewAppGui {
       return
     try {
       if (action == "record")
-        this.Controller.RecordKeyAction()
+        this.Controller.RecordButtonAction()
       else if (action == "play")
         this.Controller.PlayKeyAction()
       else if (action == "loop")
@@ -264,6 +264,8 @@ class WebViewAppGui {
       this.InsertEditorText(this.BuildMouseClickLine("L", "D"))
     else if (action == "MouseUp")
       this.InsertEditorText(this.BuildMouseClickLine("L", "U"))
+    else if (action == "MouseWheel")
+      this.InsertEditorText(this.BuildMouseClickLine("WheelUp"))
   }
 
   BuildMouseClickLine(button, mode := "") {
@@ -1062,6 +1064,9 @@ class WebViewAppGui {
         return { Event: "KeyUp", Key: keyMatch[1], X: "", Y: "" }
       return { Event: "Send", Key: value, X: "", Y: "" }
     }
+    if (RegExMatch(trimmed, 'i)^MouseClick\(\s*"Wheel(Up|Down)"\s*,\s*([^,\)]+)\s*,\s*([^,\)]+)(?:.*)\)\s*(?:;.*)?$', &match)) {
+      return { Event: "MouseWheel", Key: match[1], X: Trim(match[2]), Y: Trim(match[3]) }
+    }
     if (RegExMatch(trimmed, 'i)^MouseClick\(\s*"([LRM])"\s*,\s*([^,\)]+)\s*,\s*([^,\)]+)(.*)\)\s*(?:;.*)?$', &match)) {
       suffix := match[4]
       button := StrUpper(match[1])
@@ -1119,6 +1124,12 @@ class WebViewAppGui {
       return 'Send "{Blind}{' this.EscapeAhkString(key == "" ? "Shift" : key) ' Down}"'
     if (event == "KeyUp")
       return 'Send "{Blind}{' this.EscapeAhkString(key == "" ? "Shift" : key) ' Up}"'
+    if (event == "MouseWheel") {
+      direction := StrLower(key) == "down" ? "Down" : "Up"
+      x := x == "" ? "0" : x
+      y := y == "" ? "0" : y
+      return 'MouseClick("Wheel' direction '", ' x ', ' y ')'
+    }
     if (RegExMatch(event, "i)^Mouse(Click|Down|Up)$", &match)) {
       mode := match[1], button := StrUpper(key == "" ? "L" : key)
       if (button != "L" && button != "R" && button != "M")

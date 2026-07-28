@@ -49,7 +49,7 @@ class AppGui {
     this.StatusText.SetFont("s10 bold")
 
     this.RecordButton := this.Gui.Add("Button", "xm y+14 w188 h38", "Record")
-    this.RecordButton.OnEvent("Click", (*) => this.Controller.RecordKeyAction())
+    this.RecordButton.OnEvent("Click", (*) => this.Controller.RecordButtonAction())
     this.PlayButton := this.Gui.Add("Button", "xm y+8 w90 h34", "Play")
     this.PlayButton.OnEvent("Click", (*) => this.Controller.PlayKeyAction())
     this.LoopButton := this.Gui.Add("Button", "x+8 yp w90 h34", "Loop")

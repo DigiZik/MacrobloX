@@ -39,7 +39,7 @@ Main() {
   recorder := MacroRecorderEngine(settings, state, macroFiles, logger)
   playback := PlaybackController(settings, state, macroFiles, logger)
   guiApp := WebViewAppGui(settings, state, macroFiles, logger, roblox, screenshot)
-  controller := MacroController(settings, state, recorder, playback, guiApp, macroFiles, notifier, logger, updater, discord)
+  controller := MacroController(settings, state, recorder, playback, guiApp, macroFiles, notifier, logger, updater, roblox, discord)
 
   guiApp.SetController(controller)
   controller.RegisterHotkeys()
